@@ -1,7 +1,7 @@
 {
   "name": "electron-hello",
   "version": "1.0.0",
-  "main": "main.js",
+  "main": "main/index.js",
   "scripts": {
     "start": "electron ."
   },
