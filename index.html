@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hello World</title>
+</head>
+<body>
+  <h1>Hello World</h1>
+  <label for="printer-select">Printer:</label>
+  <select id="printer-select"></select>
+  <button id="print-receipt-btn">Print receipt</button>
+  <script>
+    const select = document.getElementById('printer-select');
+    (async () => {
+      const printers = await window.printerApi.getPrinters();
+      const saved = await window.printerApi.getPrinterPreference();
+      printers.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.name;
+        opt.textContent = p.name;
+        if (p.name === saved) opt.selected = true;
+        select.appendChild(opt);
+      });
+      if (!saved && printers.length) select.selectedIndex = 0;
+    })();
+    select.addEventListener('change', () => {
+      window.printerApi.setPrinterPreference(select.value);
+    });
+    document.getElementById('print-receipt-btn').addEventListener('click', async () => {
+      try {
+        const result = await window.printerApi.printReceipt();
+        alert(result.ok ? 'Receipt sent to printer' : 'Print failed');
+      } catch (e) {
+        alert('Print failed: ' + e.message);
+      }
+    });
+  </script>
+</body>
+</html>
