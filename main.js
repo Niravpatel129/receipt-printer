@@ -52,38 +52,61 @@ ipcMain.handle('set-printer-preference', (_, printerName) => {
   savePrinterPreference(printerName);
 });
 
+function drawDashed(printer) {
+  printer.drawLine('-');
+}
+
 function buildFakeReceipt(printer) {
   printer.alignCenter();
   printer.setTextDoubleHeight();
-  printer.println('FAKE RECEIPT');
+  printer.println('PIZZA DEPOT');
   printer.setTextNormal();
+  printer.println('975 PETER ROBERTSON BLVD.');
+  printer.println('BRAMPTON, ON');
   printer.newLine();
-  printer.drawLine();
   printer.alignLeft();
-  printer.println('Date: ' + new Date().toLocaleString());
-  printer.println('Order #: 0001');
-  printer.drawLine();
+  printer.println('ORDER: #0411 FOR MARKO');
+  printer.println('DATE: FEB 7, 2026');
+  drawDashed(printer);
   printer.tableCustom([
-    { text: 'Item', align: 'LEFT', width: 0.5 },
-    { text: 'Qty', align: 'CENTER', width: 0.25 },
-    { text: 'Price', align: 'RIGHT', width: 0.25 }
+    { text: 'NUM ITEM', align: 'LEFT', width: 0.7, bold: true },
+    { text: 'AMT ($)', align: 'RIGHT', width: 0.3, bold: true }
   ]);
-  printer.tableCustom([
-    { text: 'Coffee', align: 'LEFT', width: 0.5 },
-    { text: '2', align: 'CENTER', width: 0.25 },
-    { text: '$5.00', align: 'RIGHT', width: 0.25 }
-  ]);
-  printer.tableCustom([
-    { text: 'Sandwich', align: 'LEFT', width: 0.5 },
-    { text: '1', align: 'CENTER', width: 0.25 },
-    { text: '$8.50', align: 'RIGHT', width: 0.25 }
-  ]);
-  printer.drawLine();
-  printer.leftRight('Total:', '$18.50');
-  printer.drawLine();
+  drawDashed(printer);
+  printer.bold(true);
+  printer.leftRight('01 LARGE PIZZA', '22.99');
+  printer.bold(false);
+  printer.println('   TANDOORI PANEER');
+  printer.println('   ROASTED RED PEPPERS');
+  printer.println('   GREEN PEPPERS');
+  printer.println('   ONIONS');
+  printer.println('   GINGER');
+  printer.println('   GREEN CHILLI');
+  printer.println('   CORIANDER');
+  printer.println('   CHILLI FLAKES');
+  printer.bold(true);
+  printer.leftRight('02 CREAMY GARLIC DIP', '1.49');
+  printer.leftRight('03 PEPSI CAN', '1.99');
+  printer.bold(false);
+  drawDashed(printer);
+  printer.leftRight('ITEM COUNT', '3');
+  printer.bold(true);
+  printer.leftRight('TOTAL', '$ 26.47');
+  printer.bold(false);
+  drawDashed(printer);
+  printer.println('CARD #: **** **** **** 9711');
+  printer.println('AUTH #: 867324');
+  printer.println('USERID: MARKO K');
   printer.newLine();
   printer.alignCenter();
-  printer.println('Thank you!');
+  printer.println('ENJOY YOUR MEAL!');
+  printer.newLine();
+  printer.code128('0411', { height: 50, text: 0 });
+  printer.newLine();
+  printer.println('PIZZADEPOT.CA');
+  printer.newLine();
+  printer.alignCenter();
+  printer.println('*');
   printer.newLine();
   printer.cut();
 }
