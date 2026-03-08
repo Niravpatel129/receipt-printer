@@ -29,13 +29,16 @@ function registerIpcHandlers() {
       const statuses = getAllStatuses();
       const terminal = ['printed', 'cancelled', 'failed', 'skipped'];
       const backendToPrint = (v) => (v === 'completed' ? 'printed' : v);
-      return jobs.map((j) => {
+      const result = jobs.map((j) => {
         const s = statuses[j.id];
         const backendStatus = j.status ? backendToPrint(String(j.status).toLowerCase()) : null;
         const useBackend = backendStatus && terminal.includes(backendStatus);
         const printStatus = useBackend ? backendStatus : (s ? s.status : 'pending');
         return { ...j, printStatus, printError: s && s.error, printedAt: s && s.at };
       });
+      const dateTs = (j) => (j.date ? new Date(j.date).getTime() : 0);
+      result.sort((a, b) => dateTs(b) - dateTs(a));
+      return result;
     } catch (e) {
       throw { status: e.response?.status, message: e.response?.data?.message || e.message || 'Request failed' };
     }
