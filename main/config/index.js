@@ -9,6 +9,6 @@ function getOrderStatusFilePath() {
   return path.join(app.getPath('userData'), 'print-order-status.json');
 }
 
-const BACKEND_URL = 'https://pizza-depot-backend-91ae077a284d.herokuapp.com';
+const DEFAULT_API_BASE_URL = 'https://pizza-depot-backend-91ae077a284d.herokuapp.com';
 
-module.exports = { getPrefFilePath, getOrderStatusFilePath, BACKEND_URL };
+module.exports = { getPrefFilePath, getOrderStatusFilePath, DEFAULT_API_BASE_URL };

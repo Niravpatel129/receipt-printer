@@ -1,5 +1,4 @@
 const { ipcMain } = require('electron');
-const { BACKEND_URL } = require('../config');
 const { loadPrinterPreference, savePrinterPreference, loadBackendConfig, saveBackendConfig } = require('../prefs');
 const { printReceipt } = require('../printer');
 const { enqueue, getQueue } = require('../queue');
@@ -20,7 +19,7 @@ function registerIpcHandlers() {
   ipcMain.handle('enqueue-print-job', (_, payload) => enqueue(payload));
   ipcMain.handle('get-print-queue', () => getQueue());
 
-  ipcMain.handle('get-backend-config', () => ({ ...loadBackendConfig(), backendUrl: BACKEND_URL }));
+  ipcMain.handle('get-backend-config', () => loadBackendConfig());
   ipcMain.handle('set-backend-config', async (_, config) => {
     saveBackendConfig(config);
     stopBackendPolling();

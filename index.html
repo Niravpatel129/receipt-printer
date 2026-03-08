@@ -47,6 +47,8 @@
   <p id="queue-status">Queue: 0 pending</p>
   <hr>
   <h2>Backend</h2>
+  <label for="api-base-url">API base URL:</label>
+  <input type="url" id="api-base-url" placeholder="https://api.example.com" style="width: 280px;">
   <label for="kitchen-secret">Kitchen secret:</label>
   <input type="password" id="kitchen-secret" placeholder="Kitchen secret" style="width: 200px;">
   <label for="backend-poll-ms">Poll interval (ms):</label>
@@ -85,6 +87,7 @@
   <script>
     const select = document.getElementById('printer-select');
     const queueStatus = document.getElementById('queue-status');
+    const apiBaseUrl = document.getElementById('api-base-url');
     const kitchenSecret = document.getElementById('kitchen-secret');
     const backendPollMs = document.getElementById('backend-poll-ms');
     const backendStatus = document.getElementById('backend-status');
@@ -110,8 +113,8 @@
         return;
       }
       const config = await window.printerApi.getBackendConfig();
-      if (!config.backendUrl) {
-        showConnectionStatus(false, 'Backend URL not set');
+      if (!config.apiBaseUrl) {
+        showConnectionStatus(false, 'API base URL not set');
         return;
       }
       if (!config.kitchenSecret) {
@@ -129,17 +132,17 @@
 
     async function refreshBackendStatus() {
       const config = await window.printerApi.getBackendConfig();
-      if (!config.backendUrl) {
-        backendStatus.textContent = 'Backend not configured. Set URL and Save to poll for print jobs.';
+      if (!config.apiBaseUrl) {
+        backendStatus.textContent = 'Backend not configured. Set API base URL and Save to poll for print jobs.';
         renderQueueTable([]);
         return;
       }
       try {
         const jobs = await window.printerApi.fetchBackendPendingJobs();
-        backendStatus.textContent = `Backend: ${config.backendUrl} — ${jobs.length} pending on server`;
+        backendStatus.textContent = `${config.apiBaseUrl} — ${jobs.length} pending on server`;
         renderQueueTable(jobs);
       } catch (e) {
-        backendStatus.textContent = `Backend: ${config.backendUrl} — error: ${e.message}`;
+        backendStatus.textContent = `${config.apiBaseUrl} — error: ${e.message}`;
         renderQueueTable([]);
       }
     }
@@ -312,6 +315,7 @@
         await window.printerApi.setPrinterPreference(select.value);
       }
       const cfg = await window.printerApi.getBackendConfig();
+      apiBaseUrl.value = cfg.apiBaseUrl || '';
       kitchenSecret.value = cfg.kitchenSecret || '';
       backendPollMs.value = cfg.backendPollIntervalMs || 5000;
       await refreshQueue();
@@ -343,6 +347,7 @@
 
     document.getElementById('backend-save-btn').addEventListener('click', async () => {
       await window.printerApi.setBackendConfig({
+        apiBaseUrl: apiBaseUrl.value ? apiBaseUrl.value.trim() : undefined,
         kitchenSecret: kitchenSecret.value || undefined,
         backendPollIntervalMs: parseInt(backendPollMs.value, 10) || 5000
       });

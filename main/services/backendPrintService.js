@@ -1,5 +1,4 @@
 const axios = require('axios');
-const { BACKEND_URL } = require('../config');
 const { loadBackendConfig } = require('../prefs');
 const { setOrderStatus } = require('../orderStatusStore');
 
@@ -15,7 +14,8 @@ function withTimeout(promise, ms) {
 }
 
 function getAxiosConfig() {
-  const baseURL = BACKEND_URL ? BACKEND_URL.replace(/\/$/, '') : '';
+  const { apiBaseUrl } = loadBackendConfig();
+  const baseURL = apiBaseUrl && typeof apiBaseUrl === 'string' ? apiBaseUrl.replace(/\/$/, '') : '';
   const headers = { 'Content-Type': 'application/json' };
   return { baseURL, headers };
 }
@@ -31,6 +31,9 @@ function getKitchenSecret() {
 }
 
 function orderToReceiptPayload(order) {
+  if (order.receipt && typeof order.receipt === 'object') {
+    return order.receipt;
+  }
   const items = (order.items || []).map((it, i) => ({
     num: String(i + 1).padStart(2, '0'),
     name: (it.name || it.title || '').toUpperCase(),
@@ -41,7 +44,7 @@ function orderToReceiptPayload(order) {
   const dateStr = order.orderDate || order.date || order.createdAt || '';
   const date = dateStr ? new Date(dateStr).toLocaleDateString('en-CA', { year: 'numeric', month: 'short', day: 'numeric' }).toUpperCase() : '';
   const payment = order.payment || {};
-  const cardLastFour = payment.lastFour || payment.cardLastFour || '';
+  const cardLastFour = payment.lastFour || payment.cardLastFour || payment.last4 || '';
   return {
     storeName: order.receiptStoreName || order.storeName || '',
     address: order.receiptAddressLine1 || order.addressLine1 || '',
@@ -53,7 +56,7 @@ function orderToReceiptPayload(order) {
     itemCount: String(order.itemCount != null ? order.itemCount : items.length),
     total,
     cardLastFour: cardLastFour ? String(cardLastFour).slice(-4) : '',
-    authCode: payment.authCode || '',
+    authCode: (payment.authCode || payment.authNumber || ''),
     userId: order.userId || order.customerName || '',
     barcode: order.orderNumber || order._id || '',
     website: order.receiptFooterWebsite || order.footerWebsite || '',
@@ -105,8 +108,8 @@ async function checkHealth() {
   const { baseURL, headers } = getAxiosConfig();
   if (!baseURL) return false;
   try {
-    const { data, status } = await axios.get(`${baseURL}/api/kitchen/health`, { headers });
-    return status === 200 && data && data.status === 'ok';
+    const { data, status } = await axios.get(`${baseURL}/api/health`, { headers });
+    return status === 200 && data && (data.status === 'ok' || data.ok === true);
   } catch {
     return false;
   }
@@ -120,7 +123,11 @@ function secretQuery() {
 async function markJobComplete(id) {
   const { baseURL, headers } = getAxiosConfig();
   if (!baseURL) return;
-  await axios.post(`${baseURL}/api/kitchen/print-jobs/${encodeURIComponent(id)}/complete${secretQuery()}`, null, { headers });
+  await axios.patch(
+    `${baseURL}/api/kitchen/orders/${encodeURIComponent(id)}${secretQuery()}`,
+    { printed: true },
+    { headers }
+  );
 }
 
 async function markJobFailed(id, message) {
@@ -157,10 +164,22 @@ async function markJobCancel(id) {
   }
 }
 
+async function addOrderToPrintQueue(orderId) {
+  const { baseURL, headers } = getAxiosConfig();
+  if (!baseURL) throw new Error('API base URL not set');
+  const { data } = await axios.post(
+    `${baseURL}/api/kitchen/orders/${encodeURIComponent(orderId)}/print${secretQuery()}`,
+    {},
+    { headers }
+  );
+  return data;
+}
+
 async function startBackendPolling(printReceiptFn, intervalMs = null) {
   if (pollTimer) return;
-  if (!BACKEND_URL) {
-    console.log('[Backend print] No backend URL configured; skipping backend polling');
+  const { apiBaseUrl } = loadBackendConfig();
+  if (!apiBaseUrl || !apiBaseUrl.trim()) {
+    console.log('[Backend print] No API base URL configured; skipping backend polling');
     return;
   }
   const ok = await checkHealth();
@@ -224,6 +243,7 @@ module.exports = {
   markJobFailed,
   markJobCancel,
   markJobSkipped,
+  addOrderToPrintQueue,
   startBackendPolling,
   stopBackendPolling,
   isPollingActive,

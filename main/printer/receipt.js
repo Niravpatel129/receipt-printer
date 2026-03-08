@@ -2,26 +2,43 @@ function drawDashed(printer) {
   printer.drawLine('-');
 }
 
+const WEBSITE = 'PIZZADEPOT.CA';
+const FOOTER_MESSAGE = 'ENJOY YOUR MEAL!';
+
 const DEFAULT_RECEIPT = {
   storeName: 'PIZZA DEPOT',
-    address: '975 PETER ROBERTSON BLVD.',
-    city: 'BRAMPTON, ON',
-    orderNumber: '0411',
-    customerName: 'MARKO',
-    date: 'FEB 7, 2026',
-    items: [
-      { num: '01', name: 'LARGE PIZZA', amount: '22.99', toppings: ['TANDOORI PANEER', 'ROASTED RED PEPPERS', 'GREEN PEPPERS', 'ONIONS', 'GINGER', 'GREEN CHILLI', 'CORIANDER', 'CHILLI FLAKES'] },
-      { num: '02', name: 'CREAMY GARLIC DIP', amount: '1.49' },
-      { num: '03', name: 'PEPSI CAN', amount: '1.99' }
-    ],
-    itemCount: '3',
-    total: '$ 26.47',
-    cardLastFour: '9711',
-    authCode: '867324',
-    userId: 'MARKO K',
-    barcode: '0411',
-  website: 'PIZZADEPOT.CA',
-  footerMessage: 'ENJOY YOUR MEAL!'
+  address: '975 PETER ROBERTSON BLVD.',
+  city: 'BRAMPTON, ON',
+  orderNumber: '0411',
+  customerName: 'MARKO',
+  date: 'FEB 7, 2026',
+  items: [
+    {
+      num: '01',
+      name: 'LARGE PIZZA',
+      amount: '22.99',
+      toppings: [
+        'TANDOORI PANEER',
+        'ROASTED RED PEPPERS',
+        'GREEN PEPPERS',
+        'ONIONS',
+        'GINGER',
+        'GREEN CHILLI',
+        'CORIANDER',
+        'CHILLI FLAKES',
+      ],
+    },
+    { num: '02', name: 'CREAMY GARLIC DIP', amount: '1.49' },
+    { num: '03', name: 'PEPSI CAN', amount: '1.99' },
+  ],
+  itemCount: '3',
+  total: '$ 26.47',
+  cardLastFour: '9711',
+  authCode: '867324',
+  userId: 'MARKO K',
+  barcode: '0411',
+  website: WEBSITE,
+  footerMessage: FOOTER_MESSAGE,
 };
 
 function buildReceipt(printer, data = null) {
