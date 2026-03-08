@@ -3,14 +3,17 @@
   "version": "1.0.0",
   "main": "main/index.js",
   "scripts": {
-    "start": "electron ."
+    "start": "npx electron .",
+    "install:mac": "npm install --omit=optional"
   },
   "devDependencies": {
     "electron": "^33.0.0",
     "electron-reloader": "^1.2.3"
   },
   "dependencies": {
-    "@thesusheer/electron-printer": "^2.0.4",
     "node-thermal-printer": "^4.6.0"
+  },
+  "optionalDependencies": {
+    "@thesusheer/electron-printer": "^2.0.4"
   }
 }

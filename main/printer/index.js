@@ -1,17 +1,36 @@
 const { ThermalPrinter, PrinterTypes } = require('node-thermal-printer');
-const electronPrinter = require('@thesusheer/electron-printer');
 const { loadPrinterPreference } = require('../prefs');
 const { buildReceipt } = require('./receipt');
 
-const printerDriver = {
-  getPrinters: () => electronPrinter.getPrinters().map(p => ({ ...p, attributes: ['RAW'] })),
-  getPrinter: (name) => {
-    const p = electronPrinter.getPrinter(name);
-    if (!p) return null;
-    return { ...p, status: p.status || 'IDLE' };
-  },
-  printDirect: (opts) => electronPrinter.printDirect({ ...opts, docname: opts.docname || 'Receipt' })
-};
+function createMockDriver() {
+  return {
+    getPrinters: () => [{ name: 'Mock Printer', displayName: 'Mock Printer (development)', attributes: ['RAW'] }],
+    getPrinter: (name) => ({ name, displayName: name, status: 'IDLE' }),
+    printDirect: (opts) => {
+      const size = opts.data ? opts.data.length : 0;
+      console.log('[Mock printer] Print job:', size, 'bytes (development mode)');
+    }
+  };
+}
+
+let electronPrinter;
+try {
+  electronPrinter = require('@thesusheer/electron-printer');
+} catch (_) {
+  electronPrinter = null;
+}
+
+const printerDriver = electronPrinter
+  ? {
+      getPrinters: () => electronPrinter.getPrinters().map(p => ({ ...p, attributes: ['RAW'] })),
+      getPrinter: (name) => {
+        const p = electronPrinter.getPrinter(name);
+        if (!p) return null;
+        return { ...p, status: p.status || 'IDLE' };
+      },
+      printDirect: (opts) => electronPrinter.printDirect({ ...opts, docname: opts.docname || 'Receipt' })
+    }
+  : createMockDriver();
 
 async function printReceipt() {
   const printerName = loadPrinterPreference();
