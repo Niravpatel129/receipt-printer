@@ -18,6 +18,7 @@
     .queue-details-btn { padding: 2px 6px; cursor: pointer; background: #e9ecef; border: 1px solid #ccc; border-radius: 3px; font-size: 10px; }
     .queue-details-btn:hover { background: #dee2e6; }
     .status-pending { color: #856404; }
+    .status-printing { color: #0c5460; font-weight: 600; }
     .status-printed { color: #155724; font-weight: 600; }
     .status-failed { color: #721c24; font-weight: 600; }
     .status-cancelled { color: #6c757d; }
@@ -160,11 +161,11 @@
         const payment = (o.paymentMethod || '').replace(/^\w/, (c) => c.toUpperCase());
         const itemCount = o.itemCount != null ? o.itemCount : (Array.isArray(o.items) ? o.items.length : 0);
         const status = o.printStatus || 'pending';
-        const statusLabels = { printed: 'Printed', failed: 'Failed', pending: 'Pending', cancelled: 'Cancelled', skipped: 'Skipped' };
+        const statusLabels = { printed: 'Printed', failed: 'Failed', pending: 'Pending', printing: 'Printing…', cancelled: 'Cancelled', skipped: 'Skipped' };
         const statusLabel = statusLabels[status] || 'Pending';
         const statusTitle = status === 'failed' && o.printError ? escapeHtml(o.printError) : statusLabel;
         const statusClass = 'status-' + (status || 'pending');
-        const canPrint = status !== 'printed' && status !== 'cancelled';
+        const canPrint = status !== 'printed' && status !== 'printing';
         const canRetry = status === 'failed';
         const canSkip = status === 'pending' || status === 'failed';
         const canCancel = status !== 'printed' && status !== 'cancelled';
@@ -347,7 +348,7 @@
     });
 
     setInterval(refreshQueue, 3000);
-    setInterval(refreshBackendStatus, 10000);
+    setInterval(refreshBackendStatus, 2000);
     setInterval(refreshConnectionStatus, 3000);
   </script>
 </body>

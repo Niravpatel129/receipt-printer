@@ -4,7 +4,15 @@ const { loadBackendConfig } = require('../prefs');
 const { setOrderStatus } = require('../orderStatusStore');
 
 const DEFAULT_POLL_MS = 5000;
+const PRINT_TIMEOUT_MS = 60000;
 let pollTimer = null;
+
+function withTimeout(promise, ms) {
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(`Print timed out after ${ms / 1000}s`)), ms);
+    promise.then((v) => { clearTimeout(t); resolve(v); }).catch((e) => { clearTimeout(t); reject(e); });
+  });
+}
 
 function getAxiosConfig() {
   const baseURL = BACKEND_URL ? BACKEND_URL.replace(/\/$/, '') : '';
@@ -61,10 +69,18 @@ async function fetchPendingJobs() {
   const url = `${baseURL}/api/kitchen/print-queue?secret=${encodeURIComponent(kitchenSecret)}`;
   const { data } = await axios.get(url, { headers });
   const orders = data.orders || data.jobs || (Array.isArray(data) ? data : []);
+  const toIdString = (v) => {
+    if (v == null) return '';
+    if (typeof v === 'string') return v;
+    if (typeof v === 'number') return String(v);
+    if (typeof v === 'object' && v.$oid != null) return String(v.$oid);
+    return String(v);
+  };
+  const normId = (o) => toIdString(o._id != null ? o._id : o.id);
   return orders
     .filter((o) => o && (o._id != null || o.id != null))
     .map((order) => ({
-      id: order._id || order.id,
+      id: normId(order),
       payload: orderToReceiptPayload(order),
       orderNumber: order.orderNumber,
       customerName: order.customerName,
@@ -163,7 +179,8 @@ async function startBackendPolling(printReceiptFn, intervalMs = null) {
       processing = true;
       for (const job of jobs) {
         try {
-          await printReceiptFn(job.payload || null);
+          setOrderStatus(job.id, 'printing');
+          await withTimeout(printReceiptFn(job.payload || null), PRINT_TIMEOUT_MS);
           await markJobComplete(job.id);
           setOrderStatus(job.id, 'printed');
         } catch (err) {

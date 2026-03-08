@@ -30,7 +30,8 @@ function registerIpcHandlers() {
       const terminal = ['printed', 'cancelled', 'failed', 'skipped'];
       const backendToPrint = (v) => (v === 'completed' ? 'printed' : v);
       const result = jobs.map((j) => {
-        const s = statuses[j.id];
+        const idKey = j.id != null ? String(j.id) : '';
+        const s = idKey ? statuses[idKey] : null;
         const backendStatus = j.status ? backendToPrint(String(j.status).toLowerCase()) : null;
         const useBackend = backendStatus && terminal.includes(backendStatus);
         const printStatus = useBackend ? backendStatus : (s ? s.status : 'pending');
