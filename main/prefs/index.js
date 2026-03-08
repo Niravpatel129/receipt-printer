@@ -24,4 +24,29 @@ function savePrinterPreference(printerName) {
   }
 }
 
-module.exports = { loadPrefs, loadPrinterPreference, savePrinterPreference };
+function loadBackendConfig() {
+  const p = loadPrefs();
+  return {
+    kitchenSecret: p.kitchenSecret || '',
+    backendPollIntervalMs: p.backendPollIntervalMs || 5000
+  };
+}
+
+function saveBackendConfig({ kitchenSecret, backendPollIntervalMs }) {
+  try {
+    const prefs = loadPrefs();
+    if (kitchenSecret !== undefined) prefs.kitchenSecret = kitchenSecret;
+    if (backendPollIntervalMs !== undefined) prefs.backendPollIntervalMs = backendPollIntervalMs;
+    fs.writeFileSync(PREF_FILE, JSON.stringify(prefs), 'utf8');
+  } catch (err) {
+    console.error('Failed to save backend config', err);
+  }
+}
+
+module.exports = {
+  loadPrefs,
+  loadPrinterPreference,
+  savePrinterPreference,
+  loadBackendConfig,
+  saveBackendConfig
+};

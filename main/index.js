@@ -1,6 +1,9 @@
 const { app, BrowserWindow } = require('electron');
 const { createWindow } = require('./window');
 const { registerIpcHandlers } = require('./ipc');
+const { startPolling } = require('./queue');
+const { printReceipt } = require('./printer');
+const { startBackendPolling, stopBackendPolling } = require('./services/backendPrintService');
 
 try {
   require('electron-reloader')(module, { ignore: /node_modules/ });
@@ -8,7 +11,15 @@ try {
 
 registerIpcHandlers();
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  createWindow();
+  startPolling((payload) => printReceipt(payload), 2000);
+  startBackendPolling((payload) => printReceipt(payload));
+});
+
+app.on('before-quit', () => {
+  stopBackendPolling();
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();

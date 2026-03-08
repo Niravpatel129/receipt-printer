@@ -6,12 +6,75 @@
   <title>Hello World</title>
 </head>
 <body>
-  <h1>Hello World</h1>
+  <div id="connection-status" style="padding: 6px 10px; margin: -8px -8px 12px -8px; font-weight: 600; display: none;"></div>
+  <h1>Receipt Printer</h1>
   <label for="printer-select">Printer:</label>
   <select id="printer-select"></select>
-  <button id="print-receipt-btn">Print receipt</button>
+  <button id="print-now-btn">Print now</button>
+  <button id="queue-btn">Add to queue</button>
+  <p id="queue-status">Queue: 0 pending</p>
+  <hr>
+  <h2>Backend</h2>
+  <label for="kitchen-secret">Kitchen secret:</label>
+  <input type="password" id="kitchen-secret" placeholder="Kitchen secret" style="width: 200px;">
+  <label for="backend-poll-ms">Poll interval (ms):</label>
+  <input type="number" id="backend-poll-ms" value="5000" min="2000" step="1000" style="width: 80px;">
+  <button id="backend-save-btn">Save</button>
+  <p id="backend-status"></p>
   <script>
     const select = document.getElementById('printer-select');
+    const queueStatus = document.getElementById('queue-status');
+    const kitchenSecret = document.getElementById('kitchen-secret');
+    const backendPollMs = document.getElementById('backend-poll-ms');
+    const backendStatus = document.getElementById('backend-status');
+    const connectionStatus = document.getElementById('connection-status');
+
+    function showConnectionStatus(connected, message) {
+      connectionStatus.style.display = 'block';
+      connectionStatus.textContent = message;
+      connectionStatus.style.background = connected ? '#d4edda' : '#f8d7da';
+      connectionStatus.style.color = connected ? '#155724' : '#721c24';
+    }
+
+    async function checkConnection() {
+      const config = await window.printerApi.getBackendConfig();
+      if (!config.backendUrl) {
+        showConnectionStatus(false, 'Backend URL not set');
+        return;
+      }
+      if (!config.kitchenSecret) {
+        showConnectionStatus(false, 'Kitchen secret not set');
+        return;
+      }
+      try {
+        await window.printerApi.fetchBackendPendingJobs();
+        showConnectionStatus(true, 'Connected');
+      } catch (e) {
+        const status = e.response?.status ?? e.status;
+        showConnectionStatus(false, status === 401 || status === 403 ? 'Invalid kitchen secret' : 'Connection failed');
+      }
+    }
+
+    async function refreshQueue() {
+      const queue = await window.printerApi.getPrintQueue();
+      const pending = queue.filter(j => j.status === 'pending' || j.status === 'printing');
+      queueStatus.textContent = `Queue: ${pending.length} pending`;
+    }
+
+    async function refreshBackendStatus() {
+      const config = await window.printerApi.getBackendConfig();
+      if (!config.backendUrl) {
+        backendStatus.textContent = 'Backend not configured. Set URL and Save to poll for print jobs.';
+        return;
+      }
+      try {
+        const jobs = await window.printerApi.fetchBackendPendingJobs();
+        backendStatus.textContent = `Backend: ${config.backendUrl} — ${jobs.length} pending on server`;
+      } catch (e) {
+        backendStatus.textContent = `Backend: ${config.backendUrl} — error: ${e.message}`;
+      }
+    }
+
     (async () => {
       const printers = await window.printerApi.getPrinters();
       const saved = await window.printerApi.getPrinterPreference();
@@ -23,11 +86,19 @@
         select.appendChild(opt);
       });
       if (!saved && printers.length) select.selectedIndex = 0;
+      const cfg = await window.printerApi.getBackendConfig();
+      kitchenSecret.value = cfg.kitchenSecret || '';
+      backendPollMs.value = cfg.backendPollIntervalMs || 5000;
+      await refreshQueue();
+      await refreshBackendStatus();
+      await checkConnection();
     })();
+
     select.addEventListener('change', () => {
       window.printerApi.setPrinterPreference(select.value);
     });
-    document.getElementById('print-receipt-btn').addEventListener('click', async () => {
+
+    document.getElementById('print-now-btn').addEventListener('click', async () => {
       try {
         const result = await window.printerApi.printReceipt();
         alert(result.ok ? 'Receipt sent to printer' : 'Print failed');
@@ -35,6 +106,27 @@
         alert('Print failed: ' + e.message);
       }
     });
+
+    document.getElementById('queue-btn').addEventListener('click', async () => {
+      try {
+        await window.printerApi.enqueuePrintJob();
+        await refreshQueue();
+      } catch (e) {
+        alert('Failed to enqueue: ' + e.message);
+      }
+    });
+
+    document.getElementById('backend-save-btn').addEventListener('click', async () => {
+      await window.printerApi.setBackendConfig({
+        kitchenSecret: kitchenSecret.value || undefined,
+        backendPollIntervalMs: parseInt(backendPollMs.value, 10) || 5000
+      });
+      await checkConnection();
+      await refreshBackendStatus();
+    });
+
+    setInterval(refreshQueue, 3000);
+    setInterval(refreshBackendStatus, 10000);
   </script>
 </body>
 </html>

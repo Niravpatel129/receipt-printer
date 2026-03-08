@@ -32,7 +32,7 @@ const printerDriver = electronPrinter
     }
   : createMockDriver();
 
-async function printReceipt() {
+async function printReceipt(payload = null) {
   const printerName = loadPrinterPreference();
   if (!printerName) {
     throw new Error('No printer selected. Pick a printer from the dropdown first.');
@@ -43,7 +43,7 @@ async function printReceipt() {
     interface: 'printer:' + printerName,
     driver: printerDriver
   });
-  buildReceipt(printer);
+  buildReceipt(printer, payload);
   await printer.execute();
   return { ok: true };
 }

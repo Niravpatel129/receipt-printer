@@ -2,9 +2,8 @@ function drawDashed(printer) {
   printer.drawLine('-');
 }
 
-function buildReceipt(printer) {
-  const data = {
-    storeName: 'PIZZA DEPOT',
+const DEFAULT_RECEIPT = {
+  storeName: 'PIZZA DEPOT',
     address: '975 PETER ROBERTSON BLVD.',
     city: 'BRAMPTON, ON',
     orderNumber: '0411',
@@ -21,26 +20,29 @@ function buildReceipt(printer) {
     authCode: '867324',
     userId: 'MARKO K',
     barcode: '0411',
-    website: 'PIZZADEPOT.CA',
-    footerMessage: 'ENJOY YOUR MEAL!'
-  };
+  website: 'PIZZADEPOT.CA',
+  footerMessage: 'ENJOY YOUR MEAL!'
+};
+
+function buildReceipt(printer, data = null) {
+  const d = data && typeof data === 'object' ? { ...DEFAULT_RECEIPT, ...data } : DEFAULT_RECEIPT;
 
   printer.alignCenter();
   printer.setTextDoubleHeight();
-  printer.println(data.storeName);
+  printer.println(d.storeName);
   printer.setTextNormal();
-  printer.println(data.address);
-  printer.println(data.city);
+  printer.println(d.address);
+  printer.println(d.city);
   printer.newLine();
   printer.alignLeft();
-  printer.println(`ORDER: #${data.orderNumber} FOR ${data.customerName}`);
-  printer.println(`DATE: ${data.date}`);
+  printer.println(`ORDER: #${d.orderNumber} FOR ${d.customerName}`);
+  printer.println(`DATE: ${d.date}`);
   drawDashed(printer);
   printer.bold(true);
   printer.leftRight('NUM ITEM', 'AMT ($)');
   printer.bold(false);
   drawDashed(printer);
-  data.items.forEach((item) => {
+  (d.items || []).forEach((item) => {
     printer.bold(true);
     printer.leftRight(`${item.num} ${item.name}`, item.amount);
     printer.bold(false);
@@ -49,21 +51,21 @@ function buildReceipt(printer) {
     }
   });
   drawDashed(printer);
-  printer.leftRight('ITEM COUNT', data.itemCount);
+  printer.leftRight('ITEM COUNT', d.itemCount);
   printer.bold(true);
-  printer.leftRight('TOTAL', data.total);
+  printer.leftRight('TOTAL', d.total);
   printer.bold(false);
   drawDashed(printer);
-  printer.println(`CARD #: **** **** **** ${data.cardLastFour}`);
-  printer.println(`AUTH #: ${data.authCode}`);
-  printer.println(`USERID: ${data.userId}`);
+  printer.println(`CARD #: **** **** **** ${d.cardLastFour}`);
+  printer.println(`AUTH #: ${d.authCode}`);
+  printer.println(`USERID: ${d.userId}`);
   printer.newLine();
   printer.alignCenter();
-  printer.println(data.footerMessage);
+  printer.println(d.footerMessage);
   printer.newLine();
-  printer.code128(data.barcode, { height: 50, text: 0 });
+  printer.code128(d.barcode, { height: 50, text: 0 });
   printer.newLine();
-  printer.println(data.website);
+  printer.println(d.website);
   printer.newLine();
   printer.alignCenter();
   printer.println('*');
