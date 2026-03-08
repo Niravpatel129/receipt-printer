@@ -307,7 +307,10 @@
         if (p.name === saved) opt.selected = true;
         select.appendChild(opt);
       });
-      if (!saved && printers.length) select.selectedIndex = 0;
+      if (!saved && printers.length) {
+        select.selectedIndex = 0;
+        await window.printerApi.setPrinterPreference(select.value);
+      }
       const cfg = await window.printerApi.getBackendConfig();
       kitchenSecret.value = cfg.kitchenSecret || '';
       backendPollMs.value = cfg.backendPollIntervalMs || 5000;

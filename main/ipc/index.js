@@ -3,7 +3,7 @@ const { BACKEND_URL } = require('../config');
 const { loadPrinterPreference, savePrinterPreference, loadBackendConfig, saveBackendConfig } = require('../prefs');
 const { printReceipt } = require('../printer');
 const { enqueue, getQueue } = require('../queue');
-const { fetchPendingJobs, isPollingActive, markJobCancel, markJobSkipped } = require('../services/backendPrintService');
+const { fetchPendingJobs, isPollingActive, markJobCancel, markJobSkipped, startBackendPolling, stopBackendPolling } = require('../services/backendPrintService');
 const { getAllStatuses, setOrderStatus } = require('../orderStatusStore');
 
 function registerIpcHandlers() {
@@ -21,7 +21,11 @@ function registerIpcHandlers() {
   ipcMain.handle('get-print-queue', () => getQueue());
 
   ipcMain.handle('get-backend-config', () => ({ ...loadBackendConfig(), backendUrl: BACKEND_URL }));
-  ipcMain.handle('set-backend-config', (_, config) => saveBackendConfig(config));
+  ipcMain.handle('set-backend-config', async (_, config) => {
+    saveBackendConfig(config);
+    stopBackendPolling();
+    await startBackendPolling((payload) => printReceipt(payload));
+  });
   ipcMain.handle('get-backend-polling-active', () => isPollingActive());
   ipcMain.handle('fetch-backend-pending-jobs', async () => {
     try {

@@ -39,10 +39,9 @@ function saveBackendConfig({ kitchenSecret, backendPollIntervalMs }) {
   try {
     const prefs = loadPrefs();
     if (kitchenSecret !== undefined && kitchenSecret !== null) {
-      const trimmed = typeof kitchenSecret === 'string' ? kitchenSecret.trim() : String(kitchenSecret);
-      if (trimmed) prefs.kitchenSecret = trimmed;
+      prefs.kitchenSecret = typeof kitchenSecret === 'string' ? kitchenSecret.trim() : String(kitchenSecret);
     }
-    if (backendPollIntervalMs !== undefined) prefs.backendPollIntervalMs = backendPollIntervalMs;
+    if (backendPollIntervalMs !== undefined) prefs.backendPollIntervalMs = Number(backendPollIntervalMs) || 5000;
     fs.writeFileSync(filePath, JSON.stringify(prefs), 'utf8');
   } catch (err) {
     console.error('Failed to save backend config', err);

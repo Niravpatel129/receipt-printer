@@ -9,6 +9,8 @@ try {
   require('electron-reloader')(module, { ignore: /node_modules/ });
 } catch (_) {}
 
+process.title = 'Receipt Printer';
+app.setName('Receipt Printer');
 registerIpcHandlers();
 
 app.whenReady().then(async () => {
