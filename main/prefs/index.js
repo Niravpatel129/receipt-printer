@@ -1,9 +1,10 @@
 const fs = require('fs');
-const { PREF_FILE } = require('../config');
+const { getPrefFilePath } = require('../config');
 
 function loadPrefs() {
+  const filePath = getPrefFilePath();
   try {
-    const data = fs.readFileSync(PREF_FILE, 'utf8');
+    const data = fs.readFileSync(filePath, 'utf8');
     return JSON.parse(data);
   } catch {
     return {};
@@ -15,10 +16,11 @@ function loadPrinterPreference() {
 }
 
 function savePrinterPreference(printerName) {
+  const filePath = getPrefFilePath();
   try {
     const prefs = loadPrefs();
     prefs.printerName = printerName;
-    fs.writeFileSync(PREF_FILE, JSON.stringify(prefs), 'utf8');
+    fs.writeFileSync(filePath, JSON.stringify(prefs), 'utf8');
   } catch (err) {
     console.error('Failed to save printer preference', err);
   }
@@ -33,11 +35,15 @@ function loadBackendConfig() {
 }
 
 function saveBackendConfig({ kitchenSecret, backendPollIntervalMs }) {
+  const filePath = getPrefFilePath();
   try {
     const prefs = loadPrefs();
-    if (kitchenSecret !== undefined) prefs.kitchenSecret = kitchenSecret;
+    if (kitchenSecret !== undefined && kitchenSecret !== null) {
+      const trimmed = typeof kitchenSecret === 'string' ? kitchenSecret.trim() : String(kitchenSecret);
+      if (trimmed) prefs.kitchenSecret = trimmed;
+    }
     if (backendPollIntervalMs !== undefined) prefs.backendPollIntervalMs = backendPollIntervalMs;
-    fs.writeFileSync(PREF_FILE, JSON.stringify(prefs), 'utf8');
+    fs.writeFileSync(filePath, JSON.stringify(prefs), 'utf8');
   } catch (err) {
     console.error('Failed to save backend config', err);
   }

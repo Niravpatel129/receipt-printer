@@ -3,7 +3,38 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Hello World</title>
+  <title>Receipt Printer</title>
+  <style>
+    .queue-print-btn { padding: 4px 8px; cursor: pointer; background: #007bff; color: #fff; border: none; border-radius: 4px; font-size: 11px; margin: 1px; }
+    .queue-print-btn:hover:not(:disabled) { background: #0056b3; }
+    .queue-print-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .queue-action-btn { padding: 4px 8px; cursor: pointer; border: 1px solid #ccc; border-radius: 4px; font-size: 11px; margin: 1px; background: #fff; }
+    .queue-action-btn:hover { background: #f0f0f0; }
+    .queue-action-btn.cancel-btn { border-color: #dc3545; color: #dc3545; }
+    .queue-action-btn.cancel-btn:hover { background: #f8d7da; }
+    .queue-action-btn.skip-btn { border-color: #6c757d; color: #6c757d; }
+    .queue-action-btn.retry-btn { border-color: #28a745; color: #28a745; }
+    .queue-action-btn.retry-btn:hover { background: #d4edda; }
+    .queue-details-btn { padding: 2px 6px; cursor: pointer; background: #e9ecef; border: 1px solid #ccc; border-radius: 3px; font-size: 10px; }
+    .queue-details-btn:hover { background: #dee2e6; }
+    .status-pending { color: #856404; }
+    .status-printed { color: #155724; font-weight: 600; }
+    .status-failed { color: #721c24; font-weight: 600; }
+    .status-cancelled { color: #6c757d; }
+    .status-skipped { color: #6c757d; }
+    .order-json-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; z-index: 1000; }
+    .order-json-overlay.visible { display: flex; }
+    .order-json-dialog { background: #fff; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); max-width: 90vw; max-height: 85vh; display: flex; flex-direction: column; }
+    .order-json-dialog h4 { margin: 0; padding: 12px 16px; border-bottom: 1px solid #ddd; }
+    .order-json-dialog pre { margin: 0; padding: 12px 16px; overflow: auto; font-size: 12px; line-height: 1.4; max-height: 70vh; white-space: pre-wrap; word-break: break-all; }
+    .order-json-dialog .dialog-close { margin: 12px 16px; padding: 8px 16px; align-self: flex-end; cursor: pointer; background: #333; color: #fff; border: none; border-radius: 4px; }
+    .order-json-dialog .dialog-close:hover { background: #555; }
+    .detail-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px 20px; }
+    .detail-section { font-size: 12px; line-height: 1.5; }
+    .detail-section strong { display: block; margin-bottom: 4px; color: #333; }
+    tr.queue-row { cursor: pointer; }
+    tr.queue-row:hover { background: #f5f5f5; }
+  </style>
 </head>
 <body>
   <div id="connection-status" style="padding: 6px 10px; margin: -8px -8px 12px -8px; font-weight: 600; display: none;"></div>
@@ -21,6 +52,35 @@
   <input type="number" id="backend-poll-ms" value="5000" min="2000" step="1000" style="width: 80px;">
   <button id="backend-save-btn">Save</button>
   <p id="backend-status"></p>
+  <h3>Print queue</h3>
+  <div id="queue-table-wrap" style="overflow-x: auto;">
+    <table id="queue-table" style="width: 100%; border-collapse: collapse;">
+      <thead>
+        <tr style="background: #eee;">
+          <th style="padding: 6px 8px; text-align: left; border: 1px solid #ccc;"></th>
+          <th style="padding: 6px 8px; text-align: left; border: 1px solid #ccc;">Order #</th>
+          <th style="padding: 6px 8px; text-align: left; border: 1px solid #ccc;">Customer</th>
+          <th style="padding: 6px 8px; text-align: left; border: 1px solid #ccc;">Items</th>
+          <th style="padding: 6px 8px; text-align: left; border: 1px solid #ccc;">Total</th>
+          <th style="padding: 6px 8px; text-align: left; border: 1px solid #ccc;">Fulfillment</th>
+          <th style="padding: 6px 8px; text-align: left; border: 1px solid #ccc;">Payment</th>
+          <th style="padding: 6px 8px; text-align: left; border: 1px solid #ccc;">Date</th>
+          <th style="padding: 6px 8px; text-align: left; border: 1px solid #ccc;">Store</th>
+          <th style="padding: 6px 8px; text-align: left; border: 1px solid #ccc;">Status</th>
+          <th style="padding: 6px 8px; text-align: left; border: 1px solid #ccc;">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="queue-table-body"></tbody>
+    </table>
+    <p id="queue-table-empty" style="color: #666; margin: 8px 0;">Loading…</p>
+  </div>
+  <div id="order-json-overlay" class="order-json-overlay">
+    <div class="order-json-dialog">
+      <h4 id="order-json-title">Order</h4>
+      <pre id="order-json-pre"></pre>
+      <button type="button" class="dialog-close" id="order-json-close">Close</button>
+    </div>
+  </div>
   <script>
     const select = document.getElementById('printer-select');
     const queueStatus = document.getElementById('queue-status');
@@ -29,14 +89,25 @@
     const backendStatus = document.getElementById('backend-status');
     const connectionStatus = document.getElementById('connection-status');
 
+    const TITLE_BASE = 'Receipt Printer';
+    function setWindowTitle(connected, message) {
+      const dot = connected ? '\u{1F7E2}' : '\u{1F534}';
+      document.title = `${dot} ${TITLE_BASE} — ${message}`;
+    }
     function showConnectionStatus(connected, message) {
       connectionStatus.style.display = 'block';
       connectionStatus.textContent = message;
       connectionStatus.style.background = connected ? '#d4edda' : '#f8d7da';
       connectionStatus.style.color = connected ? '#155724' : '#721c24';
+      setWindowTitle(connected, message);
     }
 
-    async function checkConnection() {
+    async function refreshConnectionStatus() {
+      const pollingActive = await window.printerApi.getBackendPollingActive();
+      if (pollingActive) {
+        showConnectionStatus(true, 'Connected');
+        return;
+      }
       const config = await window.printerApi.getBackendConfig();
       if (!config.backendUrl) {
         showConnectionStatus(false, 'Backend URL not set');
@@ -46,13 +117,7 @@
         showConnectionStatus(false, 'Kitchen secret not set');
         return;
       }
-      try {
-        await window.printerApi.fetchBackendPendingJobs();
-        showConnectionStatus(true, 'Connected');
-      } catch (e) {
-        const status = e.response?.status ?? e.status;
-        showConnectionStatus(false, status === 401 || status === 403 ? 'Invalid kitchen secret' : 'Connection failed');
-      }
+      showConnectionStatus(false, 'Polling inactive');
     }
 
     async function refreshQueue() {
@@ -65,17 +130,173 @@
       const config = await window.printerApi.getBackendConfig();
       if (!config.backendUrl) {
         backendStatus.textContent = 'Backend not configured. Set URL and Save to poll for print jobs.';
+        renderQueueTable([]);
         return;
       }
       try {
         const jobs = await window.printerApi.fetchBackendPendingJobs();
         backendStatus.textContent = `Backend: ${config.backendUrl} — ${jobs.length} pending on server`;
+        renderQueueTable(jobs);
       } catch (e) {
         backendStatus.textContent = `Backend: ${config.backendUrl} — error: ${e.message}`;
+        renderQueueTable([]);
       }
     }
 
+    function renderQueueTable(orders) {
+      const tbody = document.getElementById('queue-table-body');
+      const emptyEl = document.getElementById('queue-table-empty');
+      tbody.innerHTML = '';
+      if (!orders || orders.length === 0) {
+        emptyEl.textContent = 'No orders in queue.';
+        return;
+      }
+      emptyEl.textContent = '';
+      const cell = 'padding: 6px 8px; border: 1px solid #ccc;';
+      orders.forEach((o) => {
+        const dateStr = o.date ? new Date(o.date).toLocaleString() : '';
+        const totalStr = typeof o.total === 'number' ? `$${o.total.toFixed(2)}` : (o.total || '');
+        const fulfillment = (o.fulfillmentType || '').replace(/^\w/, (c) => c.toUpperCase());
+        const payment = (o.paymentMethod || '').replace(/^\w/, (c) => c.toUpperCase());
+        const itemCount = o.itemCount != null ? o.itemCount : (Array.isArray(o.items) ? o.items.length : 0);
+        const status = o.printStatus || 'pending';
+        const statusLabels = { printed: 'Printed', failed: 'Failed', pending: 'Pending', cancelled: 'Cancelled', skipped: 'Skipped' };
+        const statusLabel = statusLabels[status] || 'Pending';
+        const statusTitle = status === 'failed' && o.printError ? escapeHtml(o.printError) : statusLabel;
+        const statusClass = 'status-' + (status || 'pending');
+        const canPrint = status !== 'printed' && status !== 'cancelled';
+        const canRetry = status === 'failed';
+        const canSkip = status === 'pending' || status === 'failed';
+        const canCancel = status !== 'printed' && status !== 'cancelled';
+        const actionsHtml = [
+          canPrint ? `<button type="button" class="queue-print-btn" data-order-id="${escapeHtml(o.id)}">${canRetry ? 'Retry' : 'Print now'}</button>` : '',
+          canSkip ? `<button type="button" class="queue-action-btn skip-btn" data-order-id="${escapeHtml(o.id)}">Skip</button>` : '',
+          canCancel ? `<button type="button" class="queue-action-btn cancel-btn" data-order-id="${escapeHtml(o.id)}">Cancel</button>` : ''
+        ].filter(Boolean).join('');
+        const tr = document.createElement('tr');
+        tr.className = 'queue-row';
+        tr.dataset.orderId = o.id;
+        tr.innerHTML = `<td style="${cell}"><button type="button" class="queue-details-btn" data-order-id="${escapeHtml(o.id)}" title="Toggle details">▼</button></td><td style="${cell}"><strong>${escapeHtml(o.orderNumber || o.id || '')}</strong></td><td style="${cell}">${escapeHtml(o.customerName || '')}</td><td style="${cell}">${itemCount}</td><td style="${cell}">${escapeHtml(totalStr)}</td><td style="${cell}">${escapeHtml(fulfillment)}</td><td style="${cell}">${escapeHtml(payment)}</td><td style="${cell}">${escapeHtml(dateStr)}</td><td style="${cell}">${escapeHtml(o.storeName || '')}</td><td style="${cell}"><span class="${statusClass}" title="${statusTitle}">${escapeHtml(statusLabel)}</span></td><td style="${cell}">${actionsHtml}</td>`;
+        tbody.appendChild(tr);
+        const detailRow = document.createElement('tr');
+        detailRow.className = 'queue-detail-row';
+        detailRow.dataset.orderId = o.id;
+        detailRow.hidden = true;
+        const p = o.payload || {};
+        const receiptHeader = [p.storeName, [p.address, p.city].filter(Boolean).join(', ')].filter(Boolean).join(' — ') || '—';
+        const receiptItems = (p.items || []).map((it) => {
+          const toppings = (it.toppings || []).length ? '<br>' + (it.toppings || []).map((t) => '  ' + escapeHtml(t)).join('<br>') : '';
+          return `${escapeHtml(it.num || '')} ${escapeHtml(it.name || '')} ${escapeHtml(it.amount || '')}${toppings}`;
+        }).join('<br>') || '—';
+        const receiptFooter = [p.website, p.footerMessage].filter(Boolean).join(' · ') || '—';
+        const cardAuth = [p.cardLastFour && `Card ****${p.cardLastFour}`, p.authCode && `Auth ${p.authCode}`].filter(Boolean).join(' · ') || '';
+        const itemsWithOptions = (o.items || []).map((it) => {
+          const opts = (it.options || it.modifiers || []).length ? '<br><small>' + (it.options || it.modifiers || []).map((m) => '  ' + escapeHtml(m)).join('<br>') + '</small>' : '';
+          return `${escapeHtml(it.name || it.title || '')} ×${it.quantity || 1} $${typeof it.price === 'number' ? it.price.toFixed(2) : (it.price || '0')}${opts}`;
+        }).join('<br>') || '—';
+        const subtotalStr = o.subtotal != null ? `$${Number(o.subtotal).toFixed(2)}` : '—';
+        const taxStr = o.tax != null ? `$${Number(o.tax).toFixed(2)}` : '—';
+        const deliveryStr = o.deliveryFee != null ? `$${Number(o.deliveryFee).toFixed(2)}` : '—';
+        const totalStrDetail = o.total != null ? `$${Number(o.total).toFixed(2)}` : (p.total || '—');
+        const detailError = status === 'failed' && o.printError ? `<div class="detail-section"><strong>Print error</strong><br>${escapeHtml(o.printError)}</div>` : '';
+        detailRow.innerHTML = `<td colspan="11" style="${cell} background: #f9f9f9;">
+          <div class="detail-grid">
+            <div class="detail-section"><strong>Receipt</strong><br>${escapeHtml(receiptHeader)}<br>Order #${escapeHtml(p.orderNumber || '')} · ${escapeHtml(p.customerName || '')}<br>${escapeHtml(p.date || '')}<br>${receiptItems}<br>Items: ${escapeHtml(p.itemCount || '')} · Total: ${escapeHtml(p.total || '')}${cardAuth ? '<br>' + escapeHtml(cardAuth) : ''}<br>${p.barcode ? 'Barcode: ' + escapeHtml(p.barcode) : ''}<br>${escapeHtml(receiptFooter)}</div>
+            <div class="detail-section"><strong>Items</strong><br>${itemsWithOptions}</div>
+            <div class="detail-section"><strong>Totals</strong><br>Subtotal: ${subtotalStr}<br>Tax: ${taxStr}<br>Delivery: ${deliveryStr}<br>Total: ${totalStrDetail}</div>
+            <div class="detail-section"><strong>Customer</strong><br>${escapeHtml(o.customerName || '')}<br>${escapeHtml(o.customerPhone || '—')}<br>${escapeHtml(o.customerEmail || '—')}</div>
+            <div class="detail-section"><strong>Order</strong><br>Fulfillment: ${escapeHtml(fulfillment)}<br>Payment: ${escapeHtml(payment)}<br>Status: ${escapeHtml(o.status || '')}</div>
+            <div class="detail-section"><strong>Notes</strong><br>${escapeHtml(o.notes != null ? o.notes : '—')}</div>
+            ${detailError}
+          </div>
+        </td>`;
+        tbody.appendChild(detailRow);
+        tr.addEventListener('click', (e) => {
+          if (e.target.closest('button')) return;
+          showOrderJsonModal(o);
+        });
+      });
+      tbody.querySelectorAll('.queue-details-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const id = btn.dataset.orderId;
+          const detailRow = tbody.querySelector(`tr.queue-detail-row[data-order-id="${id}"]`);
+          if (detailRow) {
+            detailRow.hidden = !detailRow.hidden;
+            btn.textContent = detailRow.hidden ? '▼' : '▲';
+          }
+        });
+      });
+      tbody.querySelectorAll('.queue-print-btn').forEach((btn) => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const id = btn.dataset.orderId;
+          const o = orders.find((x) => x.id === id);
+          if (!o || !o.payload) return;
+          btn.disabled = true;
+          if (o.printStatus === 'failed') await window.printerApi.setOrderPrintStatus(id, 'pending');
+          try {
+            await window.printerApi.printReceipt(o.payload);
+            await window.printerApi.setOrderPrintStatus(id, 'printed');
+            alert('Sent to printer');
+          } catch (err) {
+            const msg = err.message || String(err);
+            await window.printerApi.setOrderPrintStatus(id, 'failed', msg);
+            alert('Print failed: ' + msg);
+          } finally {
+            btn.disabled = false;
+            refreshBackendStatus();
+          }
+        });
+      });
+      tbody.querySelectorAll('.cancel-btn').forEach((btn) => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const id = btn.dataset.orderId;
+          if (!confirm('Remove this order from the print queue?')) return;
+          await window.printerApi.cancelOrderInQueue(id);
+          refreshBackendStatus();
+        });
+      });
+      tbody.querySelectorAll('.skip-btn').forEach((btn) => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const id = btn.dataset.orderId;
+          await window.printerApi.skipOrderInQueue(id);
+          refreshBackendStatus();
+        });
+      });
+    }
+
+    function escapeHtml(s) {
+      const div = document.createElement('div');
+      div.textContent = s == null ? '' : String(s);
+      return div.innerHTML;
+    }
+
+    function showOrderJsonModal(order) {
+      const overlay = document.getElementById('order-json-overlay');
+      const pre = document.getElementById('order-json-pre');
+      const title = document.getElementById('order-json-title');
+      title.textContent = `Order ${order.orderNumber || order.id || ''}`;
+      try {
+        pre.textContent = JSON.stringify(order, null, 2);
+      } catch (_) {
+        pre.textContent = String(order);
+      }
+      overlay.classList.add('visible');
+    }
+
+    function closeOrderJsonModal() {
+      document.getElementById('order-json-overlay').classList.remove('visible');
+    }
+
+    document.getElementById('order-json-close').addEventListener('click', closeOrderJsonModal);
+    document.getElementById('order-json-overlay').addEventListener('click', (e) => {
+      if (e.target.id === 'order-json-overlay') closeOrderJsonModal();
+    });
+
     (async () => {
+      setWindowTitle(false, 'Loading…');
       const printers = await window.printerApi.getPrinters();
       const saved = await window.printerApi.getPrinterPreference();
       printers.forEach(p => {
@@ -91,7 +312,7 @@
       backendPollMs.value = cfg.backendPollIntervalMs || 5000;
       await refreshQueue();
       await refreshBackendStatus();
-      await checkConnection();
+      await refreshConnectionStatus();
     })();
 
     select.addEventListener('change', () => {
@@ -121,12 +342,13 @@
         kitchenSecret: kitchenSecret.value || undefined,
         backendPollIntervalMs: parseInt(backendPollMs.value, 10) || 5000
       });
-      await checkConnection();
+      await refreshConnectionStatus();
       await refreshBackendStatus();
     });
 
     setInterval(refreshQueue, 3000);
     setInterval(refreshBackendStatus, 10000);
+    setInterval(refreshConnectionStatus, 3000);
   </script>
 </body>
 </html>

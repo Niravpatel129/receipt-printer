@@ -11,10 +11,10 @@ try {
 
 registerIpcHandlers();
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   createWindow();
   startPolling((payload) => printReceipt(payload), 2000);
-  startBackendPolling((payload) => printReceipt(payload));
+  await startBackendPolling((payload) => printReceipt(payload));
 });
 
 app.on('before-quit', () => {
