@@ -12,6 +12,12 @@ try {
 
 process.title = 'Receipt Printer';
 app.setName('Receipt Printer');
+if (process.platform === 'darwin' || process.platform === 'win32') {
+  app.setLoginItemSettings({
+    openAtLogin: true,
+    openAsHidden: true,
+  });
+}
 registerIpcHandlers();
 
 let mainWindow = null;
