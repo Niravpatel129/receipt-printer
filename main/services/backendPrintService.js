@@ -9,7 +9,15 @@ let pollTimer = null;
 function withTimeout(promise, ms) {
   return new Promise((resolve, reject) => {
     const t = setTimeout(() => reject(new Error(`Print timed out after ${ms / 1000}s`)), ms);
-    promise.then((v) => { clearTimeout(t); resolve(v); }).catch((e) => { clearTimeout(t); reject(e); });
+    promise
+      .then((v) => {
+        clearTimeout(t);
+        resolve(v);
+      })
+      .catch((e) => {
+        clearTimeout(t);
+        reject(e);
+      });
   });
 }
 
@@ -37,12 +45,17 @@ function orderToReceiptPayload(order) {
   const items = (order.items || []).map((it, i) => ({
     num: String(i + 1).padStart(2, '0'),
     name: (it.name || it.title || '').toUpperCase(),
-    amount: typeof it.price !== 'undefined' ? String(Number(it.price).toFixed(2)) : (it.amount || '0.00'),
-    toppings: it.toppings || it.options
+    amount:
+      typeof it.price !== 'undefined' ? String(Number(it.price).toFixed(2)) : it.amount || '0.00',
+    toppings: it.toppings || it.options,
   }));
   const total = order.total != null ? `$ ${Number(order.total).toFixed(2)}` : '$ 0.00';
   const dateStr = order.orderDate || order.date || order.createdAt || '';
-  const date = dateStr ? new Date(dateStr).toLocaleDateString('en-CA', { year: 'numeric', month: 'short', day: 'numeric' }).toUpperCase() : '';
+  const date = dateStr
+    ? new Date(dateStr)
+        .toLocaleDateString('en-CA', { year: 'numeric', month: 'short', day: 'numeric' })
+        .toUpperCase()
+    : '';
   const payment = order.payment || {};
   const cardLastFour = payment.lastFour || payment.cardLastFour || payment.last4 || '';
   return {
@@ -56,11 +69,11 @@ function orderToReceiptPayload(order) {
     itemCount: String(order.itemCount != null ? order.itemCount : items.length),
     total,
     cardLastFour: cardLastFour ? String(cardLastFour).slice(-4) : '',
-    authCode: (payment.authCode || payment.authNumber || ''),
+    authCode: payment.authCode || payment.authNumber || '',
     userId: order.userId || order.customerName || '',
     barcode: order.orderNumber || order._id || '',
     website: order.receiptFooterWebsite || order.footerWebsite || '',
-    footerMessage: order.receiptFooterMessage || order.footerMessage || ''
+    footerMessage: order.receiptFooterMessage || order.footerMessage || '',
   };
 }
 
@@ -100,7 +113,7 @@ async function fetchPendingJobs() {
       paymentMethod: order.paymentMethod,
       status: order.status,
       notes: order.notes,
-      items: order.items || []
+      items: order.items || [],
     }));
 }
 
@@ -126,7 +139,7 @@ async function markJobComplete(id) {
   await axios.patch(
     `${baseURL}/api/kitchen/orders/${encodeURIComponent(id)}${secretQuery()}`,
     { printed: true },
-    { headers }
+    { headers },
   );
 }
 
@@ -150,7 +163,8 @@ async function markJobSkipped(id, reason) {
       { headers },
     );
   } catch (e) {
-    if (e.response?.status !== 404) console.error('[Backend print] Failed to report skipped to backend', e);
+    if (e.response?.status !== 404)
+      console.error('[Backend print] Failed to report skipped to backend', e);
   }
 }
 
@@ -158,9 +172,14 @@ async function markJobCancel(id) {
   const { baseURL, headers } = getAxiosConfig();
   if (!baseURL) return;
   try {
-    await axios.post(`${baseURL}/api/kitchen/print-jobs/${encodeURIComponent(id)}/cancel${secretQuery()}`, null, { headers });
+    await axios.post(
+      `${baseURL}/api/kitchen/print-jobs/${encodeURIComponent(id)}/cancel${secretQuery()}`,
+      null,
+      { headers },
+    );
   } catch (e) {
-    if (e.response?.status !== 404) console.error('[Backend print] Failed to report cancel to backend', e);
+    if (e.response?.status !== 404)
+      console.error('[Backend print] Failed to report cancel to backend', e);
   }
 }
 
@@ -170,7 +189,7 @@ async function addOrderToPrintQueue(orderId) {
   const { data } = await axios.post(
     `${baseURL}/api/kitchen/orders/${encodeURIComponent(orderId)}/print${secretQuery()}`,
     {},
-    { headers }
+    { headers },
   );
   return data;
 }
@@ -213,7 +232,8 @@ async function startBackendPolling(printReceiptFn, intervalMs = null) {
             try {
               await markJobFailed(job.id, msg);
             } catch (e) {
-              if (e.response?.status !== 404) console.error('[Backend print] Failed to report failure to backend', e);
+              if (e.response?.status !== 404)
+                console.error('[Backend print] Failed to report failure to backend', e);
             }
           }
         }
