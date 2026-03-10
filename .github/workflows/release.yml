@@ -11,7 +11,7 @@ permissions:
 jobs:
   build-and-release:
     runs-on: windows-latest
-    if: ${{ github.event_name == 'workflow_dispatch' || !startsWith(github.event.head_commit.message, 'chore: release') }}
+    if: "github.event_name == 'workflow_dispatch' || (github.event.head_commit != null && startsWith(github.event.head_commit.message || '', 'chore: release') == false)"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -36,13 +36,13 @@ jobs:
           git add package.json package-lock.json
           git commit -m "chore: release v${{ steps.version.outputs.version }}"
           git tag "v${{ steps.version.outputs.version }}"
-          git push "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" HEAD:${{ github.ref_name }} --follow-tags
+          git push "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" HEAD:${{ github.ref_name || 'main' }} --follow-tags
 
       - run: npm run dist:win
 
       - uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ steps.version.outputs.version }}
+          tag_name: v${{ format('{0}', steps.version.outputs.version) }}
           files: dist/*.exe
           generate_release_notes: true
         env:
