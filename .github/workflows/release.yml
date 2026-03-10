@@ -43,16 +43,7 @@ jobs:
           git tag "v${{ steps.version.outputs.version }}"
           git push "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" HEAD:${{ github.ref_name }} --follow-tags
 
-      - name: Build Windows portable
-        run: npm run dist:win
-
-      - name: Upload release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ steps.version.outputs.version }}
-          files: |
-            dist/*.exe
-            dist/latest.yml
-          generate_release_notes: true
+      - name: Build and publish
+        run: npm run build && electron-builder --win portable --publish always
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
