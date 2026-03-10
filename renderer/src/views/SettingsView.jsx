@@ -1,5 +1,6 @@
 import PrinterSection from '../components/PrinterSection';
 import BackendSection from '../components/BackendSection';
+import UpdateSection from '../components/UpdateSection';
 
 export default function SettingsView({
   printers,
@@ -33,6 +34,7 @@ export default function SettingsView({
           onSave={onBackendSave}
           backendStatus={backendStatus}
         />
+        <UpdateSection />
       </div>
     </div>
   );

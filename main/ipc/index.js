@@ -1,4 +1,5 @@
-const { ipcMain } = require('electron');
+const { ipcMain, app } = require('electron');
+const { autoUpdater } = require('electron-updater');
 const { loadPrinterPreference, savePrinterPreference, loadBackendConfig, saveBackendConfig } = require('../prefs');
 const { printReceipt } = require('../printer');
 const { enqueue, getQueue } = require('../queue');
@@ -6,6 +7,13 @@ const { fetchPendingJobs, isPollingActive, markJobCancel, markJobSkipped, startB
 const { getAllStatuses, setOrderStatus } = require('../orderStatusStore');
 
 function registerIpcHandlers() {
+  ipcMain.handle('get-app-version', () => app.getVersion());
+
+  ipcMain.handle('check-for-updates', async () => {
+    if (!app.isPackaged) return;
+    await autoUpdater.checkForUpdates().catch(() => {});
+  });
+
   ipcMain.handle('get-printers', async (event) => {
     const printers = await event.sender.getPrintersAsync();
     return printers;
