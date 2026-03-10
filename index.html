@@ -1,89 +1,227 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Receipt Printer</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
   <style>
-    .queue-print-btn { padding: 4px 8px; cursor: pointer; background: #007bff; color: #fff; border: none; border-radius: 4px; font-size: 11px; margin: 1px; }
-    .queue-print-btn:hover:not(:disabled) { background: #0056b3; }
+    :root {
+      --status-pending: #b8860b;
+      --status-printing: #0c5460;
+      --status-printed: #1e7e34;
+      --status-failed: #bd2130;
+      --status-muted: #6c757d;
+    }
+    body { padding-bottom: 2rem; }
+    header { margin-bottom: 0; }
+    header h1 { margin-bottom: 0; }
+    #connection-status {
+      display: none;
+      padding: 0.75rem 1rem;
+      font-weight: 600;
+      border-radius: var(--pico-border-radius);
+      margin-bottom: 1rem;
+    }
+    #connection-status.connected { background: var(--pico-code-background-color); color: var(--status-printed); }
+    #connection-status.disconnected { background: #f8d7da; color: var(--status-failed); }
+    .section-card { margin-bottom: 1.5rem; }
+    .section-card h2 { margin-bottom: 1rem; font-size: 1.25rem; }
+    .form-row { display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-end; margin-bottom: 0.5rem; }
+    .form-row label { min-width: 0; }
+    .form-group { display: flex; flex-direction: column; gap: 0.25rem; }
+    .form-group.inline { flex-direction: row; align-items: center; }
+    #api-base-url { width: 100%; max-width: 320px; }
+    #kitchen-secret { width: 100%; max-width: 220px; }
+    #backend-poll-ms { width: 6ch; }
+    #backend-status { margin-top: 0.5rem; font-size: 0.9rem; color: var(--pico-muted-color); }
+    #queue-status { margin-bottom: 0.5rem; font-weight: 500; }
+    .queue-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+    .queue-print-btn {
+      padding: 0.35rem 0.65rem;
+      font-size: 0.8rem;
+      border-radius: var(--pico-border-radius);
+      cursor: pointer;
+      border: none;
+      background: var(--pico-primary-background);
+      color: var(--pico-primary-inverse);
+    }
+    .queue-print-btn:hover:not(:disabled) { opacity: 0.9; }
     .queue-print-btn:disabled { opacity: 0.6; cursor: not-allowed; }
-    .queue-action-btn { padding: 4px 8px; cursor: pointer; border: 1px solid #ccc; border-radius: 4px; font-size: 11px; margin: 1px; background: #fff; }
-    .queue-action-btn:hover { background: #f0f0f0; }
-    .queue-action-btn.cancel-btn { border-color: #dc3545; color: #dc3545; }
+    .queue-action-btn {
+      padding: 0.35rem 0.65rem;
+      font-size: 0.8rem;
+      border-radius: var(--pico-border-radius);
+      cursor: pointer;
+      background: var(--pico-background-color);
+      border: 1px solid var(--pico-muted-border-color);
+      color: var(--pico-color);
+    }
+    .queue-action-btn:hover { background: var(--pico-card-background-color); }
+    .queue-action-btn.cancel-btn { border-color: var(--status-failed); color: var(--status-failed); }
     .queue-action-btn.cancel-btn:hover { background: #f8d7da; }
-    .queue-action-btn.skip-btn { border-color: #6c757d; color: #6c757d; }
-    .queue-action-btn.retry-btn { border-color: #28a745; color: #28a745; }
-    .queue-action-btn.retry-btn:hover { background: #d4edda; }
-    .queue-details-btn { padding: 2px 6px; cursor: pointer; background: #e9ecef; border: 1px solid #ccc; border-radius: 3px; font-size: 10px; }
-    .queue-details-btn:hover { background: #dee2e6; }
-    .status-pending { color: #856404; }
-    .status-printing { color: #0c5460; font-weight: 600; }
-    .status-printed { color: #155724; font-weight: 600; }
-    .status-failed { color: #721c24; font-weight: 600; }
-    .status-cancelled { color: #6c757d; }
-    .status-skipped { color: #6c757d; }
-    .order-json-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; z-index: 1000; }
-    .order-json-overlay.visible { display: flex; }
-    .order-json-dialog { background: #fff; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); max-width: 90vw; max-height: 85vh; display: flex; flex-direction: column; }
-    .order-json-dialog h4 { margin: 0; padding: 12px 16px; border-bottom: 1px solid #ddd; }
-    .order-json-dialog pre { margin: 0; padding: 12px 16px; overflow: auto; font-size: 12px; line-height: 1.4; max-height: 70vh; white-space: pre-wrap; word-break: break-all; }
-    .order-json-dialog .dialog-close { margin: 12px 16px; padding: 8px 16px; align-self: flex-end; cursor: pointer; background: #333; color: #fff; border: none; border-radius: 4px; }
-    .order-json-dialog .dialog-close:hover { background: #555; }
-    .detail-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px 20px; }
-    .detail-section { font-size: 12px; line-height: 1.5; }
-    .detail-section strong { display: block; margin-bottom: 4px; color: #333; }
+    .queue-action-btn.skip-btn { border-color: var(--status-muted); color: var(--status-muted); }
+    .queue-details-btn {
+      padding: 0.2rem 0.5rem;
+      font-size: 0.75rem;
+      border-radius: 4px;
+      cursor: pointer;
+      background: var(--pico-muted-border-color);
+      border: 1px solid var(--pico-muted-border-color);
+      color: var(--pico-color);
+    }
+    .queue-details-btn:hover { background: var(--pico-muted-background); }
+    .status-pending { color: var(--status-pending); }
+    .status-printing { color: var(--status-printing); font-weight: 600; }
+    .status-printed { color: var(--status-printed); font-weight: 600; }
+    .status-failed { color: var(--status-failed); font-weight: 600; }
+    .status-cancelled, .status-skipped { color: var(--status-muted); }
     tr.queue-row { cursor: pointer; }
-    tr.queue-row:hover { background: #f5f5f5; }
+    tr.queue-row:hover { background: var(--pico-muted-background); }
+    tr.queue-detail-row td { background: var(--pico-muted-background); vertical-align: top; }
+    .detail-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem 1.5rem; font-size: 0.875rem; line-height: 1.5; }
+    .detail-section strong { display: block; margin-bottom: 0.25rem; color: var(--pico-color); }
+    .overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.5);
+      display: none; align-items: center; justify-content: center;
+      z-index: 1000;
+      padding: 1rem;
+    }
+    .overlay.visible { display: flex; }
+    .dialog {
+      background: var(--pico-background-color);
+      border-radius: var(--pico-border-radius);
+      box-shadow: var(--pico-box-shadow);
+      max-width: 90vw; max-height: 85vh;
+      display: flex; flex-direction: column;
+    }
+    .dialog h4 { margin: 0; padding: 1rem 1.25rem; border-bottom: 1px solid var(--pico-muted-border-color); }
+    .dialog .dialog-body { padding: 1rem 1.25rem; overflow: auto; flex: 1; max-height: 70vh; }
+    .dialog pre { margin: 0; font-size: 0.8rem; line-height: 1.4; white-space: pre-wrap; word-break: break-word; }
+    .dialog .dialog-actions { padding: 1rem 1.25rem; border-top: 1px solid var(--pico-muted-border-color); display: flex; gap: 0.5rem; justify-content: flex-end; }
+    #queue-table-wrap { overflow-x: auto; margin-top: 0.5rem; }
+    table { font-size: 0.875rem; }
+    table th, table td { padding: 0.5rem 0.75rem; }
+    #queue-table-empty { color: var(--pico-muted-color); margin: 0.5rem 0; font-size: 0.9rem; }
+    .toast-container {
+      position: fixed;
+      bottom: 1.5rem;
+      right: 1.5rem;
+      z-index: 2000;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      max-width: 360px;
+    }
+    .toast {
+      padding: 0.75rem 1rem;
+      border-radius: var(--pico-border-radius);
+      box-shadow: var(--pico-box-shadow);
+      font-size: 0.9rem;
+      animation: toast-in 0.2s ease;
+    }
+    .toast.success { background: var(--pico-code-background-color); color: var(--status-printed); border: 1px solid rgba(30,126,52,0.3); }
+    .toast.error { background: #f8d7da; color: var(--status-failed); border: 1px solid rgba(189,33,48,0.3); }
+    @keyframes toast-in { from { opacity: 0; transform: translateY(0.5rem); } to { opacity: 1; transform: translateY(0); } }
   </style>
 </head>
 <body>
-  <div id="connection-status" style="padding: 6px 10px; margin: -8px -8px 12px -8px; font-weight: 600; display: none;"></div>
-  <h1>Receipt Printer</h1>
-  <label for="printer-select">Printer:</label>
-  <select id="printer-select"></select>
-  <button id="print-now-btn">Print now</button>
-  <button id="queue-btn">Add to queue</button>
-  <p id="queue-status">Queue: 0 pending</p>
-  <hr>
-  <h2>Backend</h2>
-  <label for="api-base-url">API base URL:</label>
-  <input type="url" id="api-base-url" placeholder="https://api.example.com" style="width: 280px;">
-  <label for="kitchen-secret">Kitchen secret:</label>
-  <input type="password" id="kitchen-secret" placeholder="Kitchen secret" style="width: 200px;">
-  <label for="backend-poll-ms">Poll interval (ms):</label>
-  <input type="number" id="backend-poll-ms" value="5000" min="2000" step="1000" style="width: 80px;">
-  <button id="backend-save-btn">Save</button>
-  <p id="backend-status"></p>
-  <h3>Print queue</h3>
-  <div id="queue-table-wrap" style="overflow-x: auto;">
-    <table id="queue-table" style="width: 100%; border-collapse: collapse;">
-      <thead>
-        <tr style="background: #eee;">
-          <th style="padding: 6px 8px; text-align: left; border: 1px solid #ccc;"></th>
-          <th style="padding: 6px 8px; text-align: left; border: 1px solid #ccc;">Order #</th>
-          <th style="padding: 6px 8px; text-align: left; border: 1px solid #ccc;">Customer</th>
-          <th style="padding: 6px 8px; text-align: left; border: 1px solid #ccc;">Items</th>
-          <th style="padding: 6px 8px; text-align: left; border: 1px solid #ccc;">Total</th>
-          <th style="padding: 6px 8px; text-align: left; border: 1px solid #ccc;">Fulfillment</th>
-          <th style="padding: 6px 8px; text-align: left; border: 1px solid #ccc;">Payment</th>
-          <th style="padding: 6px 8px; text-align: left; border: 1px solid #ccc;">Date</th>
-          <th style="padding: 6px 8px; text-align: left; border: 1px solid #ccc;">Store</th>
-          <th style="padding: 6px 8px; text-align: left; border: 1px solid #ccc;">Status</th>
-          <th style="padding: 6px 8px; text-align: left; border: 1px solid #ccc;">Actions</th>
-        </tr>
-      </thead>
-      <tbody id="queue-table-body"></tbody>
-    </table>
-    <p id="queue-table-empty" style="color: #666; margin: 8px 0;">Loading…</p>
-  </div>
-  <div id="order-json-overlay" class="order-json-overlay">
-    <div class="order-json-dialog">
+  <div id="connection-status" role="status" aria-live="polite"></div>
+
+  <header class="container">
+    <h1>Receipt Printer</h1>
+  </header>
+
+  <main class="container">
+    <section class="section-card">
+      <h2>Printer</h2>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="printer-select">Printer</label>
+          <select id="printer-select"></select>
+        </div>
+        <div class="form-group" style="align-self: flex-end;">
+          <button id="print-now-btn">Print now</button>
+        </div>
+        <div class="form-group" style="align-self: flex-end;">
+          <button id="queue-btn" class="secondary">Add to queue</button>
+        </div>
+      </div>
+      <p id="queue-status">Queue: 0 pending</p>
+    </section>
+
+    <section class="section-card">
+      <h2>Backend</h2>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="api-base-url">API base URL</label>
+          <input type="url" id="api-base-url" placeholder="https://api.example.com">
+        </div>
+        <div class="form-group">
+          <label for="kitchen-secret">Kitchen secret</label>
+          <input type="password" id="kitchen-secret" placeholder="Kitchen secret">
+        </div>
+        <div class="form-group">
+          <label for="backend-poll-ms">Poll interval (ms)</label>
+          <input type="number" id="backend-poll-ms" value="5000" min="2000" step="1000">
+        </div>
+        <div class="form-group" style="align-self: flex-end;">
+          <button id="backend-save-btn">Save</button>
+        </div>
+      </div>
+      <p id="backend-status"></p>
+    </section>
+
+    <section class="section-card">
+      <h2>Print queue</h2>
+      <div id="queue-table-wrap">
+        <table id="queue-table">
+          <thead>
+            <tr>
+              <th></th>
+              <th>Order #</th>
+              <th>Customer</th>
+              <th>Items</th>
+              <th>Total</th>
+              <th>Fulfillment</th>
+              <th>Payment</th>
+              <th>Date</th>
+              <th>Store</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="queue-table-body"></tbody>
+        </table>
+      </div>
+      <p id="queue-table-empty">Loading…</p>
+    </section>
+  </main>
+
+  <div id="order-json-overlay" class="overlay" role="dialog" aria-modal="true" aria-labelledby="order-json-title">
+    <div class="dialog">
       <h4 id="order-json-title">Order</h4>
-      <pre id="order-json-pre"></pre>
-      <button type="button" class="dialog-close" id="order-json-close">Close</button>
+      <div class="dialog-body"><pre id="order-json-pre"></pre></div>
+      <div class="dialog-actions">
+        <button type="button" class="dialog-close" id="order-json-close">Close</button>
+      </div>
     </div>
   </div>
+
+  <div id="confirm-overlay" class="overlay" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+    <div class="dialog">
+      <h4 id="confirm-title">Confirm</h4>
+      <div class="dialog-body"><p id="confirm-message"></p></div>
+      <div class="dialog-actions">
+        <button type="button" id="confirm-cancel" class="secondary">Cancel</button>
+        <button type="button" id="confirm-ok">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-container" class="toast-container" aria-live="polite"></div>
+
   <script>
     const select = document.getElementById('printer-select');
     const queueStatus = document.getElementById('queue-status');
@@ -101,9 +239,40 @@
     function showConnectionStatus(connected, message) {
       connectionStatus.style.display = 'block';
       connectionStatus.textContent = message;
-      connectionStatus.style.background = connected ? '#d4edda' : '#f8d7da';
-      connectionStatus.style.color = connected ? '#155724' : '#721c24';
+      connectionStatus.className = connected ? 'connected' : 'disconnected';
       setWindowTitle(connected, message);
+    }
+
+    function toast(message, type = 'success') {
+      const container = document.getElementById('toast-container');
+      const el = document.createElement('div');
+      el.className = `toast ${type}`;
+      el.setAttribute('role', 'alert');
+      el.textContent = message;
+      container.appendChild(el);
+      setTimeout(() => {
+        el.remove();
+      }, 4000);
+    }
+
+    function confirmDialog(message) {
+      return new Promise((resolve) => {
+        const overlay = document.getElementById('confirm-overlay');
+        const msgEl = document.getElementById('confirm-message');
+        const cancelBtn = document.getElementById('confirm-cancel');
+        msgEl.textContent = message;
+        overlay.classList.add('visible');
+        cancelBtn.focus();
+        const cleanup = () => {
+          overlay.classList.remove('visible');
+          cancelBtn.removeEventListener('click', onCancel);
+          document.getElementById('confirm-ok').removeEventListener('click', onOk);
+        };
+        const onCancel = () => { cleanup(); resolve(false); };
+        const onOk = () => { cleanup(); resolve(true); };
+        cancelBtn.addEventListener('click', onCancel);
+        document.getElementById('confirm-ok').addEventListener('click', onOk);
+      });
     }
 
     async function refreshConnectionStatus() {
@@ -147,16 +316,23 @@
       }
     }
 
+    function escapeHtml(s) {
+      const div = document.createElement('div');
+      div.textContent = s == null ? '' : String(s);
+      return div.innerHTML;
+    }
+
     function renderQueueTable(orders) {
       const tbody = document.getElementById('queue-table-body');
       const emptyEl = document.getElementById('queue-table-empty');
       tbody.innerHTML = '';
       if (!orders || orders.length === 0) {
         emptyEl.textContent = 'No orders in queue.';
+        emptyEl.style.display = 'block';
         return;
       }
-      emptyEl.textContent = '';
-      const cell = 'padding: 6px 8px; border: 1px solid #ccc;';
+      emptyEl.style.display = 'none';
+      const statusLabels = { printed: 'Printed', failed: 'Failed', pending: 'Pending', printing: 'Printing…', cancelled: 'Cancelled', skipped: 'Skipped' };
       orders.forEach((o) => {
         const dateStr = o.date ? new Date(o.date).toLocaleString() : '';
         const totalStr = typeof o.total === 'number' ? `$${o.total.toFixed(2)}` : (o.total || '');
@@ -164,7 +340,6 @@
         const payment = (o.paymentMethod || '').replace(/^\w/, (c) => c.toUpperCase());
         const itemCount = o.itemCount != null ? o.itemCount : (Array.isArray(o.items) ? o.items.length : 0);
         const status = o.printStatus || 'pending';
-        const statusLabels = { printed: 'Printed', failed: 'Failed', pending: 'Pending', printing: 'Printing…', cancelled: 'Cancelled', skipped: 'Skipped' };
         const statusLabel = statusLabels[status] || 'Pending';
         const statusTitle = status === 'failed' && o.printError ? escapeHtml(o.printError) : statusLabel;
         const statusClass = 'status-' + (status || 'pending');
@@ -180,7 +355,7 @@
         const tr = document.createElement('tr');
         tr.className = 'queue-row';
         tr.dataset.orderId = o.id;
-        tr.innerHTML = `<td style="${cell}"><button type="button" class="queue-details-btn" data-order-id="${escapeHtml(o.id)}" title="Toggle details">▼</button></td><td style="${cell}"><strong>${escapeHtml(o.orderNumber || o.id || '')}</strong></td><td style="${cell}">${escapeHtml(o.customerName || '')}</td><td style="${cell}">${itemCount}</td><td style="${cell}">${escapeHtml(totalStr)}</td><td style="${cell}">${escapeHtml(fulfillment)}</td><td style="${cell}">${escapeHtml(payment)}</td><td style="${cell}">${escapeHtml(dateStr)}</td><td style="${cell}">${escapeHtml(o.storeName || '')}</td><td style="${cell}"><span class="${statusClass}" title="${statusTitle}">${escapeHtml(statusLabel)}</span></td><td style="${cell}">${actionsHtml}</td>`;
+        tr.innerHTML = `<td><button type="button" class="queue-details-btn" data-order-id="${escapeHtml(o.id)}" title="Toggle details" aria-label="Toggle details">▼</button></td><td><strong>${escapeHtml(o.orderNumber || o.id || '')}</strong></td><td>${escapeHtml(o.customerName || '')}</td><td>${itemCount}</td><td>${escapeHtml(totalStr)}</td><td>${escapeHtml(fulfillment)}</td><td>${escapeHtml(payment)}</td><td>${escapeHtml(dateStr)}</td><td>${escapeHtml(o.storeName || '')}</td><td><span class="${statusClass}" title="${statusTitle}">${escapeHtml(statusLabel)}</span></td><td><div class="queue-actions">${actionsHtml}</div></td>`;
         tbody.appendChild(tr);
         const detailRow = document.createElement('tr');
         detailRow.className = 'queue-detail-row';
@@ -203,7 +378,7 @@
         const deliveryStr = o.deliveryFee != null ? `$${Number(o.deliveryFee).toFixed(2)}` : '—';
         const totalStrDetail = o.total != null ? `$${Number(o.total).toFixed(2)}` : (p.total || '—');
         const detailError = status === 'failed' && o.printError ? `<div class="detail-section"><strong>Print error</strong><br>${escapeHtml(o.printError)}</div>` : '';
-        detailRow.innerHTML = `<td colspan="11" style="${cell} background: #f9f9f9;">
+        detailRow.innerHTML = `<td colspan="11">
           <div class="detail-grid">
             <div class="detail-section"><strong>Receipt</strong><br>${escapeHtml(receiptHeader)}<br>Order #${escapeHtml(p.orderNumber || '')} · ${escapeHtml(p.customerName || '')}<br>${escapeHtml(p.date || '')}<br>${receiptItems}<br>Items: ${escapeHtml(p.itemCount || '')} · Total: ${escapeHtml(p.total || '')}${cardAuth ? '<br>' + escapeHtml(cardAuth) : ''}<br>${p.barcode ? 'Barcode: ' + escapeHtml(p.barcode) : ''}<br>${escapeHtml(receiptFooter)}</div>
             <div class="detail-section"><strong>Items</strong><br>${itemsWithOptions}</div>
@@ -221,12 +396,14 @@
         });
       });
       tbody.querySelectorAll('.queue-details-btn').forEach((btn) => {
-        btn.addEventListener('click', () => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
           const id = btn.dataset.orderId;
           const detailRow = tbody.querySelector(`tr.queue-detail-row[data-order-id="${id}"]`);
           if (detailRow) {
             detailRow.hidden = !detailRow.hidden;
             btn.textContent = detailRow.hidden ? '▼' : '▲';
+            btn.setAttribute('aria-label', detailRow.hidden ? 'Show details' : 'Hide details');
           }
         });
       });
@@ -241,11 +418,11 @@
           try {
             await window.printerApi.printReceipt(o.payload);
             await window.printerApi.setOrderPrintStatus(id, 'printed');
-            alert('Sent to printer');
+            toast('Sent to printer');
           } catch (err) {
             const msg = err.message || String(err);
             await window.printerApi.setOrderPrintStatus(id, 'failed', msg);
-            alert('Print failed: ' + msg);
+            toast('Print failed: ' + msg, 'error');
           } finally {
             btn.disabled = false;
             refreshBackendStatus();
@@ -256,8 +433,10 @@
         btn.addEventListener('click', async (e) => {
           e.stopPropagation();
           const id = btn.dataset.orderId;
-          if (!confirm('Remove this order from the print queue?')) return;
+          const ok = await confirmDialog('Remove this order from the print queue?');
+          if (!ok) return;
           await window.printerApi.cancelOrderInQueue(id);
+          toast('Order removed from queue');
           refreshBackendStatus();
         });
       });
@@ -269,12 +448,6 @@
           refreshBackendStatus();
         });
       });
-    }
-
-    function escapeHtml(s) {
-      const div = document.createElement('div');
-      div.textContent = s == null ? '' : String(s);
-      return div.innerHTML;
     }
 
     function showOrderJsonModal(order) {
@@ -297,6 +470,14 @@
     document.getElementById('order-json-close').addEventListener('click', closeOrderJsonModal);
     document.getElementById('order-json-overlay').addEventListener('click', (e) => {
       if (e.target.id === 'order-json-overlay') closeOrderJsonModal();
+    });
+    document.getElementById('confirm-overlay').addEventListener('click', (e) => {
+      if (e.target.id === 'confirm-overlay') document.getElementById('confirm-cancel').click();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      if (document.getElementById('order-json-overlay').classList.contains('visible')) closeOrderJsonModal();
+      else if (document.getElementById('confirm-overlay').classList.contains('visible')) document.getElementById('confirm-cancel').click();
     });
 
     (async () => {
@@ -330,9 +511,9 @@
     document.getElementById('print-now-btn').addEventListener('click', async () => {
       try {
         const result = await window.printerApi.printReceipt();
-        alert(result.ok ? 'Receipt sent to printer' : 'Print failed');
+        toast(result.ok ? 'Receipt sent to printer' : 'Print failed', result.ok ? 'success' : 'error');
       } catch (e) {
-        alert('Print failed: ' + e.message);
+        toast('Print failed: ' + e.message, 'error');
       }
     });
 
@@ -340,8 +521,9 @@
       try {
         await window.printerApi.enqueuePrintJob();
         await refreshQueue();
+        toast('Added to queue');
       } catch (e) {
-        alert('Failed to enqueue: ' + e.message);
+        toast('Failed to enqueue: ' + e.message, 'error');
       }
     });
 
@@ -351,6 +533,7 @@
         kitchenSecret: kitchenSecret.value || undefined,
         backendPollIntervalMs: parseInt(backendPollMs.value, 10) || 5000
       });
+      toast('Backend settings saved');
       await refreshConnectionStatus();
       await refreshBackendStatus();
     });
