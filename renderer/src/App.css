@@ -119,11 +119,13 @@ body {
   cursor: pointer;
   appearance: none;
   font-family: inherit;
+  border-bottom: 2px solid transparent;
 }
 
 .app-nav .nav-link:hover {
   color: var(--pico-color);
   background: var(--pico-muted-background);
+  border-bottom-color: transparent;
 }
 
 .app-nav .nav-link.active {
@@ -208,7 +210,7 @@ body {
 }
 
 #backend-poll-ms {
-  width: 6ch;
+  min-width: 6ch;
 }
 
 .backend-status {

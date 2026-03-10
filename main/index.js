@@ -57,7 +57,7 @@ function setupAutoUpdater(win) {
   };
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
-  autoUpdater.on('error', () => send({ state: 'error' }));
+  autoUpdater.on('error', (err) => send({ state: 'error', message: err?.message }));
   autoUpdater.on('checking-for-update', () => send({ state: 'checking' }));
   autoUpdater.on('update-available', (info) => send({ state: 'available', version: info.version }));
   autoUpdater.on('update-not-available', () => send({ state: 'up-to-date' }));
