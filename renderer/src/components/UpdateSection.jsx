@@ -3,7 +3,6 @@ import { useState, useEffect, useCallback } from 'react';
 const STATUS_LABELS = {
   checking: 'Checking for updates…',
   'up-to-date': "You're up to date.",
-  error: 'Could not check for updates.',
 };
 
 export default function UpdateSection() {
@@ -24,7 +23,12 @@ export default function UpdateSection() {
   const handleCheck = useCallback(async () => {
     setBusy(true);
     setStatus({ state: 'checking' });
-    await api.checkForUpdates();
+    try {
+      await api.checkForUpdates();
+    } catch {
+      setStatus({ state: 'error', message: 'Update check failed' });
+      setBusy(false);
+    }
   }, [api]);
 
   function statusText() {
@@ -32,6 +36,7 @@ export default function UpdateSection() {
     if (status.state === 'available') return `Update available — v${status.version}`;
     if (status.state === 'downloading') return `Downloading… ${status.progress != null ? Math.round(status.progress) + '%' : ''}`;
     if (status.state === 'downloaded') return `v${status.version} ready — will install on next quit`;
+    if (status.state === 'error') return status.message || 'Could not check for updates.';
     return STATUS_LABELS[status.state] ?? null;
   }
 

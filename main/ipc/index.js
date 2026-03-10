@@ -9,9 +9,12 @@ const { getAllStatuses, setOrderStatus } = require('../orderStatusStore');
 function registerIpcHandlers() {
   ipcMain.handle('get-app-version', () => app.getVersion());
 
-  ipcMain.handle('check-for-updates', async () => {
-    if (!app.isPackaged) return;
-    await autoUpdater.checkForUpdates().catch(() => {});
+  ipcMain.handle('check-for-updates', async (event) => {
+    if (!app.isPackaged) {
+      event.sender.send('update-status', { state: 'error', message: 'Not available in development builds' });
+      return;
+    }
+    autoUpdater.checkForUpdates().catch(() => {});
   });
 
   ipcMain.handle('get-printers', async (event) => {
