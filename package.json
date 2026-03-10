@@ -7,6 +7,7 @@
     "start": "npm run build && electron .",
     "dev": "vite build --watch",
     "install:mac": "npm install --omit=optional",
+    "postinstall": "electron-rebuild",
     "dist": "npm run build && electron-builder",
     "dist:mac": "npm run build && electron-builder --mac",
     "dist:win": "npm run build && electron-builder --win portable"
@@ -40,8 +41,9 @@
     }
   },
   "devDependencies": {
+    "@electron/rebuild": "^3.6.0",
     "@vitejs/plugin-react": "^4.3.4",
-    "electron": "^33.0.0",
+    "electron": "22.3.27",
     "electron-reloader": "^1.2.3",
     "electron-builder": "^26.8.2",
     "vite": "^6.0.3"
