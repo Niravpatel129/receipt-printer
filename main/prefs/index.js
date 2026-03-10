@@ -29,19 +29,16 @@ function savePrinterPreference(printerName) {
 function loadBackendConfig() {
   const p = loadPrefs();
   return {
-    apiBaseUrl: (p.apiBaseUrl && typeof p.apiBaseUrl === 'string' ? p.apiBaseUrl.trim() : '') || DEFAULT_API_BASE_URL || '',
+    apiBaseUrl: DEFAULT_API_BASE_URL,
     kitchenSecret: p.kitchenSecret || '',
     backendPollIntervalMs: p.backendPollIntervalMs || 5000
   };
 }
 
-function saveBackendConfig({ apiBaseUrl, kitchenSecret, backendPollIntervalMs }) {
+function saveBackendConfig({ kitchenSecret, backendPollIntervalMs }) {
   const filePath = getPrefFilePath();
   try {
     const prefs = loadPrefs();
-    if (apiBaseUrl !== undefined && apiBaseUrl !== null) {
-      prefs.apiBaseUrl = typeof apiBaseUrl === 'string' ? apiBaseUrl.trim() : String(apiBaseUrl);
-    }
     if (kitchenSecret !== undefined && kitchenSecret !== null) {
       prefs.kitchenSecret = typeof kitchenSecret === 'string' ? kitchenSecret.trim() : String(kitchenSecret);
     }

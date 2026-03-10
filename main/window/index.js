@@ -12,7 +12,8 @@ function createWindow() {
       preload: path.join(__dirname, '..', '..', 'preload.js')
     }
   });
-  win.loadFile(path.join(__dirname, '..', '..', 'index.html'));
+  win.maximize();
+  win.loadFile(path.join(__dirname, '..', '..', 'dist', 'index.html'));
   return win;
 }
 
