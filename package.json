@@ -7,10 +7,10 @@
     "start": "npm run build && electron .",
     "dev": "vite build --watch",
     "install:mac": "npm install --omit=optional",
-    "postinstall": "electron-rebuild",
-    "dist": "npm run build && electron-builder",
-    "dist:mac": "npm run build && electron-builder --mac",
-    "dist:win": "npm run build && electron-builder --win portable"
+    "postinstall": "electron-builder install-app-deps",
+    "dist": "npm run build && electron-builder --publish never",
+    "dist:mac": "npm run build && electron-builder --mac --publish never",
+    "dist:win": "npm run build && electron-builder --win portable --publish never"
   },
   "build": {
     "appId": "com.receiptprinter.app",
@@ -46,7 +46,6 @@
     }
   },
   "devDependencies": {
-    "@electron/rebuild": "^3.6.0",
     "@vitejs/plugin-react": "^4.3.4",
     "electron": "22.3.27",
     "electron-reloader": "^1.2.3",
