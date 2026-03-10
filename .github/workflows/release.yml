@@ -3,6 +3,7 @@ name: Release
 on:
   push:
     branches: [main, master]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -10,7 +11,7 @@ permissions:
 jobs:
   build-and-release:
     runs-on: windows-latest
-    if: ${{ !startsWith(github.event.head_commit.message, 'chore: release') }}
+    if: ${{ github.event_name == 'workflow_dispatch' || !startsWith(github.event.head_commit.message, 'chore: release') }}
     steps:
       - uses: actions/checkout@v4
         with:
