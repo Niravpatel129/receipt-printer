@@ -1,5 +1,6 @@
 const path = require('path');
 const { app, BrowserWindow, Tray, Menu, nativeImage } = require('electron');
+const { autoUpdater } = require('electron-updater');
 const { createWindow } = require('./window');
 const { registerIpcHandlers } = require('./ipc');
 const { startPolling } = require('./queue');
@@ -50,6 +51,21 @@ function createTray(win) {
   tray.setContextMenu(contextMenu);
 }
 
+function setupAutoUpdater(win) {
+  const send = (data) => {
+    if (!win.isDestroyed()) win.webContents.send('update-status', data);
+  };
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.on('error', () => send({ state: 'error' }));
+  autoUpdater.on('checking-for-update', () => send({ state: 'checking' }));
+  autoUpdater.on('update-available', (info) => send({ state: 'available', version: info.version }));
+  autoUpdater.on('update-not-available', () => send({ state: 'up-to-date' }));
+  autoUpdater.on('download-progress', (p) => send({ state: 'downloading', progress: p.percent }));
+  autoUpdater.on('update-downloaded', (info) => send({ state: 'downloaded', version: info.version }));
+  autoUpdater.checkForUpdates().catch(() => {});
+}
+
 app.whenReady().then(async () => {
   mainWindow = createWindow();
   mainWindow.on('close', (event) => {
@@ -61,6 +77,7 @@ app.whenReady().then(async () => {
   createTray(mainWindow);
   startPolling((payload) => printReceipt(payload), 2000);
   await startBackendPolling((payload) => printReceipt(payload));
+  if (app.isPackaged) setupAutoUpdater(mainWindow);
 });
 
 app.on('before-quit', () => {
