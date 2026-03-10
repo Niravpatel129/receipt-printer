@@ -4,11 +4,42 @@
   "main": "main/index.js",
   "scripts": {
     "start": "npx electron .",
-    "install:mac": "npm install --omit=optional"
+    "install:mac": "npm install --omit=optional",
+    "dist": "electron-builder",
+    "dist:mac": "electron-builder --mac",
+    "dist:win": "electron-builder --win portable"
+  },
+  "build": {
+    "appId": "com.receiptprinter.app",
+    "productName": "Receipt Printer",
+    "directories": {
+      "buildResources": "assets"
+    },
+    "files": [
+      "main/**/*",
+      "index.html",
+      "assets/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.business"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    }
   },
   "devDependencies": {
     "electron": "^33.0.0",
-    "electron-reloader": "^1.2.3"
+    "electron-reloader": "^1.2.3",
+    "electron-builder": "^26.8.2"
   },
   "dependencies": {
     "axios": "^1.7.0",
