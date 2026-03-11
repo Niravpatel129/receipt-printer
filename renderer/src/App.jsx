@@ -48,13 +48,23 @@ export default function App() {
     setConfirm(null);
   }, []);
 
+  const wasDisconnectedRef = useRef(false);
   const refreshConnectionStatus = useCallback(async () => {
-    const pollingActive = await api.getBackendPollingActive();
-    if (pollingActive) {
-      setConnection({ show: true, connected: true, message: 'Connected' });
-      setWindowTitle(true, 'Connected');
+    const state = await api.getBackendConnectionState();
+    if (state.pollingActive) {
+      const connected = state.lastPollSucceeded;
+      const message = connected ? 'Connected' : 'Reconnecting…';
+      if (wasDisconnectedRef.current && connected) {
+        wasDisconnectedRef.current = false;
+        addToast('Backend reconnected', 'success');
+      } else if (!connected) {
+        wasDisconnectedRef.current = true;
+      }
+      setConnection({ show: true, connected, message });
+      setWindowTitle(connected, message);
       return;
     }
+    wasDisconnectedRef.current = false;
     const config = await api.getBackendConfig();
     if (!config.kitchenSecret) {
       setConnection({ show: true, connected: false, message: 'Kitchen secret not set' });
@@ -63,7 +73,7 @@ export default function App() {
     }
     setConnection({ show: true, connected: false, message: 'Polling inactive' });
     setWindowTitle(false, 'Polling inactive');
-  }, [api]);
+  }, [api, addToast]);
 
   const refreshQueue = useCallback(async () => {
     const queue = await api.getPrintQueue();
