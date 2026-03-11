@@ -15,7 +15,19 @@ const pendingStatusUpdates = [];
 
 function isNetworkError(err) {
   if (!err || typeof err !== 'object') return false;
-  if (err.code && ['ECONNREFUSED', 'ETIMEDOUT', 'ENOTFOUND', 'ENETUNREACH', 'ECONNRESET', 'EAI_AGAIN', 'ECONNABORTED'].includes(err.code)) return true;
+  if (
+    err.code &&
+    [
+      'ECONNREFUSED',
+      'ETIMEDOUT',
+      'ENOTFOUND',
+      'ENETUNREACH',
+      'ECONNRESET',
+      'EAI_AGAIN',
+      'ECONNABORTED',
+    ].includes(err.code)
+  )
+    return true;
   if (err.response === undefined && err.request !== undefined) return true;
   return false;
 }
@@ -108,34 +120,130 @@ async function fetchPendingJobs() {
   };
   const normId = (o) => toIdString(o._id != null ? o._id : o.id);
   return orders
-    .filter((o) => o && (o._id != null || o.id != null))
-    .map((order) => ({
-      id: normId(order),
-      payload: orderToReceiptPayload(order),
-      orderNumber: order.orderNumber,
-      customerName: order.customerName,
-      customerEmail: order.customerEmail,
-      customerPhone: order.customerPhone,
-      total: order.total,
-      subtotal: order.subtotal,
-      tax: order.tax,
-      deliveryFee: order.deliveryFee,
-      date: order.orderDate || order.date || order.createdAt,
-      storeName: order.receiptStoreName || order.storeName,
-      itemCount: order.itemCount,
-      fulfillmentType: order.fulfillmentType,
-      paymentMethod: order.paymentMethod,
-      status: order.status,
-      notes: order.notes,
-      items: order.items || [],
-    }));
+    .filter((o) => o && (o._id != null || o.id != null || o.order != null || o.orderId != null))
+    .map((order) => {
+      const rawOrder = order.order && typeof order.order === 'object' ? order.order : order;
+      const orderId =
+        rawOrder._id != null
+          ? normId(rawOrder)
+          : toIdString(order.orderId != null ? order.orderId : order.order_id);
+      const queueId =
+        order.queueId != null
+          ? toIdString(order.queueId)
+          : order.queue_id != null
+            ? toIdString(order.queue_id)
+            : normId(order);
+      const printStatus =
+        typeof order.printStatus === 'string' && order.printStatus
+          ? String(order.printStatus).toLowerCase()
+          : 'queued';
+      return {
+        id: queueId,
+        orderId,
+        queueId,
+        queueAddedAt: order.queueAddedAt || order.addedAt || null,
+        printStatus,
+        payload: orderToReceiptPayload(rawOrder),
+        orderNumber: rawOrder.orderNumber,
+        customerName: rawOrder.customerName,
+        customerEmail: rawOrder.customerEmail,
+        customerPhone: rawOrder.customerPhone,
+        total: rawOrder.total,
+        subtotal: rawOrder.subtotal,
+        tax: rawOrder.tax,
+        deliveryFee: rawOrder.deliveryFee,
+        date: rawOrder.orderDate || rawOrder.date || rawOrder.createdAt,
+        storeName: rawOrder.receiptStoreName || rawOrder.storeName,
+        itemCount: rawOrder.itemCount,
+        fulfillmentType: rawOrder.fulfillmentType,
+        paymentMethod: rawOrder.paymentMethod,
+        status: rawOrder.status,
+        notes: rawOrder.notes,
+        items: rawOrder.items || [],
+        lastFailedAt: order.lastFailedAt || order.failedAt || null,
+        lastFailedMessage: order.lastFailedMessage || order.failedMessage || null,
+        lastSkippedAt: order.lastSkippedAt || order.skippedAt || null,
+        lastSkippedReason: order.lastSkippedReason || order.skippedReason || null,
+      };
+    });
+}
+
+async function fetchHistoryJobs(limit = 20, page = 1) {
+  const { baseURL, headers } = getAxiosConfig();
+  if (!baseURL) return [];
+  const kitchenSecret = getKitchenSecret();
+  if (!kitchenSecret) return [];
+  const url = `${baseURL}/api/kitchen/print-queue/history?secret=${encodeURIComponent(
+    kitchenSecret,
+  )}&limit=${encodeURIComponent(limit)}&page=${encodeURIComponent(page)}`;
+  const { data } = await axios.get(url, { headers, timeout: REQUEST_TIMEOUT_MS });
+  console.log('🚀 ~ data:', data);
+  const orders = data.orders || data.jobs || (Array.isArray(data) ? data : []);
+  const toIdString = (v) => {
+    if (v == null) return '';
+    if (typeof v === 'string') return v;
+    if (typeof v === 'number') return String(v);
+    if (typeof v === 'object' && v.$oid != null) return String(v.$oid);
+    return String(v);
+  };
+  const normId = (o) => toIdString(o._id != null ? o._id : o.id);
+  return orders
+    .filter((o) => o && (o._id != null || o.id != null || o.order != null || o.orderId != null))
+    .map((order) => {
+      const rawOrder = order.order && typeof order.order === 'object' ? order.order : order;
+      const orderId =
+        rawOrder._id != null
+          ? normId(rawOrder)
+          : toIdString(order.orderId != null ? order.orderId : order.order_id);
+      const queueId =
+        order.queueId != null
+          ? toIdString(order.queueId)
+          : order.queue_id != null
+            ? toIdString(order.queue_id)
+            : normId(order);
+      const printStatus =
+        typeof order.printStatus === 'string' && order.printStatus
+          ? String(order.printStatus).toLowerCase()
+          : 'queued';
+      return {
+        id: queueId,
+        orderId,
+        queueId,
+        queueAddedAt: order.queueAddedAt || order.addedAt || null,
+        printStatus,
+        payload: orderToReceiptPayload(rawOrder),
+        orderNumber: rawOrder.orderNumber,
+        customerName: rawOrder.customerName,
+        customerEmail: rawOrder.customerEmail,
+        customerPhone: rawOrder.customerPhone,
+        total: rawOrder.total,
+        subtotal: rawOrder.subtotal,
+        tax: rawOrder.tax,
+        deliveryFee: rawOrder.deliveryFee,
+        date: rawOrder.orderDate || rawOrder.date || rawOrder.createdAt,
+        storeName: rawOrder.receiptStoreName || rawOrder.storeName,
+        itemCount: rawOrder.itemCount,
+        fulfillmentType: rawOrder.fulfillmentType,
+        paymentMethod: rawOrder.paymentMethod,
+        status: rawOrder.status,
+        notes: rawOrder.notes,
+        items: rawOrder.items || [],
+        lastFailedAt: order.lastFailedAt || order.failedAt || null,
+        lastFailedMessage: order.lastFailedMessage || order.failedMessage || null,
+        lastSkippedAt: order.lastSkippedAt || order.skippedAt || null,
+        lastSkippedReason: order.lastSkippedReason || order.skippedReason || null,
+      };
+    });
 }
 
 async function checkHealth() {
   const { baseURL, headers } = getAxiosConfig();
   if (!baseURL) return false;
   try {
-    const { data, status } = await axios.get(`${baseURL}/api/health`, { headers, timeout: REQUEST_TIMEOUT_MS });
+    const { data, status } = await axios.get(`${baseURL}/api/health`, {
+      headers,
+      timeout: REQUEST_TIMEOUT_MS,
+    });
     return status === 200 && data && (data.status === 'ok' || data.ok === true);
   } catch {
     return false;
@@ -151,13 +259,17 @@ async function markJobComplete(id) {
   const { baseURL, headers } = getAxiosConfig();
   if (!baseURL) return;
   try {
-    await axios.patch(
-      `${baseURL}/api/kitchen/orders/${encodeURIComponent(id)}${secretQuery()}`,
-      { printed: true },
+    await axios.post(
+      `${baseURL}/api/kitchen/print-jobs/${encodeURIComponent(id)}/complete${secretQuery()}`,
+      {},
       { headers, timeout: REQUEST_TIMEOUT_MS },
     );
   } catch (e) {
-    if (!isFlushingPendingUpdates && isNetworkError(e) && pendingStatusUpdates.length < MAX_PENDING_STATUS_UPDATES) {
+    if (
+      !isFlushingPendingUpdates &&
+      isNetworkError(e) &&
+      pendingStatusUpdates.length < MAX_PENDING_STATUS_UPDATES
+    ) {
       pendingStatusUpdates.push({ type: 'complete', jobId: id });
     }
     throw e;
@@ -174,7 +286,11 @@ async function markJobFailed(id, message) {
       { headers, timeout: REQUEST_TIMEOUT_MS },
     );
   } catch (e) {
-    if (!isFlushingPendingUpdates && isNetworkError(e) && pendingStatusUpdates.length < MAX_PENDING_STATUS_UPDATES) {
+    if (
+      !isFlushingPendingUpdates &&
+      isNetworkError(e) &&
+      pendingStatusUpdates.length < MAX_PENDING_STATUS_UPDATES
+    ) {
       pendingStatusUpdates.push({ type: 'failed', jobId: id, message: message || 'Print failed' });
     }
     throw e;
@@ -193,7 +309,11 @@ async function markJobSkipped(id, reason) {
   } catch (e) {
     if (e.response?.status !== 404)
       console.error('[Backend print] Failed to report skipped to backend', e);
-    if (!isFlushingPendingUpdates && isNetworkError(e) && pendingStatusUpdates.length < MAX_PENDING_STATUS_UPDATES) {
+    if (
+      !isFlushingPendingUpdates &&
+      isNetworkError(e) &&
+      pendingStatusUpdates.length < MAX_PENDING_STATUS_UPDATES
+    ) {
       pendingStatusUpdates.push({ type: 'skipped', jobId: id, reason: reason || 'unknown' });
     }
   }
@@ -274,8 +394,8 @@ async function startBackendPolling(printReceiptFn, intervalMs = null) {
       lastPollSucceeded = true;
       consecutivePollFailures = 0;
       const toPrint = jobs.filter((j) => {
-        const s = j.status != null ? String(j.status).toLowerCase() : '';
-        return s === 'completed';
+        const s = j.printStatus != null ? String(j.printStatus).toLowerCase() : 'queued';
+        return s === 'queued';
       });
       if (toPrint.length === 0) return;
       if (isPrintingPaused()) return;
@@ -284,7 +404,7 @@ async function startBackendPolling(printReceiptFn, intervalMs = null) {
         try {
           setOrderStatus(job.id, 'printing');
           await withTimeout(printReceiptFn(job.payload || null), PRINT_TIMEOUT_MS);
-          await markJobComplete(job.id);
+          await markJobComplete(job.queueId || job.id);
           setOrderStatus(job.id, 'printed');
         } catch (err) {
           const msg = err && err.message ? err.message : String(err);
@@ -292,10 +412,10 @@ async function startBackendPolling(printReceiptFn, intervalMs = null) {
           setOrderStatus(job.id, 'failed', msg);
           const isClientConfigError = /no printer selected|printer.*dropdown/i.test(msg);
           if (isClientConfigError) {
-            await markJobSkipped(job.id, 'no_printer_selected');
+            await markJobSkipped(job.queueId || job.id, 'no_printer_selected');
           } else {
             try {
-              await markJobFailed(job.id, msg);
+              await markJobFailed(job.queueId || job.id, msg);
             } catch (e) {
               if (e.response?.status !== 404)
                 console.error('[Backend print] Failed to report failure to backend', e);
@@ -336,6 +456,7 @@ function getConnectionState() {
 
 module.exports = {
   fetchPendingJobs,
+  fetchHistoryJobs,
   markJobComplete,
   markJobFailed,
   markJobCancel,
