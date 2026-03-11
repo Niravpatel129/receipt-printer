@@ -110,6 +110,7 @@ async function fetchPendingJobs() {
   if (!kitchenSecret) return [];
   const url = `${baseURL}/api/kitchen/print-queue?secret=${encodeURIComponent(kitchenSecret)}`;
   const { data } = await axios.get(url, { headers, timeout: REQUEST_TIMEOUT_MS });
+  console.log('🚀 ~ data:', data);
   const orders = data.orders || data.jobs || (Array.isArray(data) ? data : []);
   const toIdString = (v) => {
     if (v == null) return '';
@@ -390,10 +391,23 @@ async function startBackendPolling(printReceiptFn, intervalMs = null) {
     try {
       await flushPendingStatusUpdates();
       const jobs = await fetchPendingJobs();
-      lastPollSucceeded = true;
-      consecutivePollFailures = 0;
       const statuses = getAllStatuses();
       const terminal = ['printed', 'cancelled', 'failed', 'skipped'];
+      for (const job of jobs) {
+        const backend = job.printStatus != null ? String(job.printStatus).toLowerCase() : 'queued';
+        const idKey = job.id != null ? String(job.id) : '';
+        const local = idKey ? statuses[idKey] : null;
+        const localStatus = local && local.status ? String(local.status).toLowerCase() : null;
+        if (backend === 'queued' && terminal.includes(localStatus)) {
+          try {
+            await markJobComplete(job.queueId || job.id);
+          } catch (e) {
+            console.error('[Backend print] Failed to sync completed status to backend', e);
+          }
+        }
+      }
+      lastPollSucceeded = true;
+      consecutivePollFailures = 0;
       const queuedJobs = jobs.filter((j) => {
         const backend = j.printStatus != null ? String(j.printStatus).toLowerCase() : 'queued';
         const idKey = j.id != null ? String(j.id) : '';

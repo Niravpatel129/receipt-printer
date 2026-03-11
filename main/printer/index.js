@@ -3,6 +3,7 @@ const { loadPrinterPreference } = require('../prefs');
 const { buildReceipt } = require('./receipt');
 
 const SETTLE_MS = 3000;
+const PRINT_TIMEOUT_MS = 60000;
 
 function createMockDriver() {
   return {
@@ -14,6 +15,24 @@ function createMockDriver() {
       setTimeout(() => (opts.success && opts.success('mock-job')), 0);
     }
   };
+}
+
+function withTimeout(promise, ms, message) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error(message || `Print timed out after ${ms / 1000}s`)),
+      ms,
+    );
+    promise
+      .then((value) => {
+        clearTimeout(timer);
+        resolve(value);
+      })
+      .catch((err) => {
+        clearTimeout(timer);
+        reject(err);
+      });
+  });
 }
 
 function wrapPrintDirect(printDirect) {
@@ -66,14 +85,24 @@ async function printReceipt(payload = null) {
   if (!printerName) {
     throw new Error('No printer selected. Pick a printer from the dropdown first.');
   }
+  const selectedPrinter = printerDriver.getPrinter(printerName);
+  if (selectedPrinter && selectedPrinter.status && String(selectedPrinter.status) !== 'IDLE') {
+    throw new Error(
+      `Printer is not ready (${selectedPrinter.status}). Check for paper, jams, or offline state.`,
+    );
+  }
   const printer = new ThermalPrinter({
     type: PrinterTypes.EPSON,
     width: 42,
     interface: 'printer:' + printerName,
-    driver: printerDriver
+    driver: printerDriver,
   });
   buildReceipt(printer, payload);
-  await printer.execute();
+  await withTimeout(
+    printer.execute(),
+    PRINT_TIMEOUT_MS,
+    'Printer did not finish in time. It may be out of paper, jammed, or offline.',
+  );
   return { ok: true };
 }
 
