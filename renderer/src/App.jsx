@@ -90,8 +90,8 @@ export default function App() {
       return;
     }
     try {
-      const jobs = await api.fetchBackendPendingJobs();
-      setBackendStatus(`${config.apiBaseUrl} — ${jobs.length} pending on server`);
+      const jobs = await api.fetchBackendHistoryJobs(50, 1);
+      setBackendStatus(`${config.apiBaseUrl} — ${jobs.length} jobs in history`);
       setOrders(jobs);
     } catch (e) {
       setBackendStatus(`${config.apiBaseUrl} — error: ${e.message}`);

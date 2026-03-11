@@ -263,6 +263,7 @@ body {
   display: flex;
   gap: 0.5rem;
   flex-wrap: wrap;
+  align-items: flex-start;
 }
 
 .queue-print-btn {
@@ -273,6 +274,8 @@ body {
   border: none;
   background: var(--pico-primary-background);
   color: var(--pico-primary-inverse);
+  min-width: 96px;
+  text-align: center;
 }
 
 .queue-print-btn:hover:not(:disabled) {
@@ -292,6 +295,8 @@ body {
   background: var(--pico-background-color);
   border: 1px solid var(--pico-muted-border-color);
   color: var(--pico-color);
+  min-width: 80px;
+  text-align: center;
 }
 
 .queue-action-btn:hover {
@@ -302,6 +307,9 @@ body {
 .queue-action-btn.cancel-btn {
   border-color: var(--status-failed);
   color: var(--status-failed);
+  flex-basis: 100%;
+  max-width: 120px;
+  margin-top: 0.25rem;
 }
 
 .queue-action-btn.cancel-btn:hover {
