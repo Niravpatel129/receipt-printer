@@ -3,7 +3,7 @@ const { autoUpdater } = require('electron-updater');
 const { loadPrinterPreference, savePrinterPreference, loadBackendConfig, saveBackendConfig } = require('../prefs');
 const { printReceipt } = require('../printer');
 const { enqueue, getQueue } = require('../queue');
-const { fetchPendingJobs, getConnectionState, isPollingActive, markJobCancel, markJobSkipped, startBackendPolling, stopBackendPolling } = require('../services/backendPrintService');
+const { fetchPendingJobs, fetchHistoryJobs, getConnectionState, isPollingActive, markJobCancel, markJobSkipped, startBackendPolling, stopBackendPolling } = require('../services/backendPrintService');
 const { getAllStatuses, setOrderStatus } = require('../orderStatusStore');
 const { isPrintingPaused, setPrintingPaused } = require('../printingPaused');
 
@@ -46,11 +46,10 @@ function registerIpcHandlers() {
       const jobs = await fetchPendingJobs();
       const statuses = getAllStatuses();
       const terminal = ['printed', 'cancelled', 'failed', 'skipped'];
-      const backendToPrint = (v) => (v === 'completed' ? 'printed' : v);
       const result = jobs.map((j) => {
         const idKey = j.id != null ? String(j.id) : '';
         const s = idKey ? statuses[idKey] : null;
-        const backendStatus = j.status ? backendToPrint(String(j.status).toLowerCase()) : null;
+        const backendStatus = j.printStatus ? String(j.printStatus).toLowerCase() : null;
         const useBackend = backendStatus && terminal.includes(backendStatus);
         const printStatus = useBackend ? backendStatus : (s ? s.status : 'pending');
         return { ...j, printStatus, printError: s && s.error, printedAt: s && s.at };
@@ -58,6 +57,14 @@ function registerIpcHandlers() {
       const dateTs = (j) => (j.date ? new Date(j.date).getTime() : 0);
       result.sort((a, b) => dateTs(b) - dateTs(a));
       return result;
+    } catch (e) {
+      throw { status: e.response?.status, message: e.response?.data?.message || e.message || 'Request failed' };
+    }
+  });
+  ipcMain.handle('fetch-backend-history-jobs', async (_, { limit = 20, page = 1 } = {}) => {
+    try {
+      const jobs = await fetchHistoryJobs(limit, page);
+      return jobs;
     } catch (e) {
       throw { status: e.response?.status, message: e.response?.data?.message || e.message || 'Request failed' };
     }
