@@ -1,6 +1,6 @@
 const axios = require('axios');
 const { loadBackendConfig } = require('../prefs');
-const { setOrderStatus } = require('../orderStatusStore');
+const { setOrderStatus, getAllStatuses } = require('../orderStatusStore');
 const { isPrintingPaused } = require('../printingPaused');
 
 const DEFAULT_POLL_MS = 5000;
@@ -393,33 +393,38 @@ async function startBackendPolling(printReceiptFn, intervalMs = null) {
       const jobs = await fetchPendingJobs();
       lastPollSucceeded = true;
       consecutivePollFailures = 0;
-      const toPrint = jobs.filter((j) => {
-        const s = j.printStatus != null ? String(j.printStatus).toLowerCase() : 'queued';
-        return s === 'queued';
+      const statuses = getAllStatuses();
+      const terminal = ['printed', 'cancelled', 'failed', 'skipped'];
+      const queuedJobs = jobs.filter((j) => {
+        const backend = j.printStatus != null ? String(j.printStatus).toLowerCase() : 'queued';
+        const idKey = j.id != null ? String(j.id) : '';
+        const local = idKey ? statuses[idKey] : null;
+        const localStatus = local && local.status ? String(local.status).toLowerCase() : null;
+        const effective = terminal.includes(localStatus) ? localStatus : backend;
+        return effective === 'queued';
       });
-      if (toPrint.length === 0) return;
+      if (queuedJobs.length === 0) return;
       if (isPrintingPaused()) return;
       processing = true;
-      for (const job of toPrint) {
-        try {
-          setOrderStatus(job.id, 'printing');
-          await withTimeout(printReceiptFn(job.payload || null), PRINT_TIMEOUT_MS);
-          await markJobComplete(job.queueId || job.id);
-          setOrderStatus(job.id, 'printed');
-        } catch (err) {
-          const msg = err && err.message ? err.message : String(err);
-          console.error('[Backend print] Job failed:', job.id, msg);
-          setOrderStatus(job.id, 'failed', msg);
-          const isClientConfigError = /no printer selected|printer.*dropdown/i.test(msg);
-          if (isClientConfigError) {
-            await markJobSkipped(job.queueId || job.id, 'no_printer_selected');
-          } else {
-            try {
-              await markJobFailed(job.queueId || job.id, msg);
-            } catch (e) {
-              if (e.response?.status !== 404)
-                console.error('[Backend print] Failed to report failure to backend', e);
-            }
+      const job = queuedJobs[0];
+      try {
+        setOrderStatus(job.id, 'printing');
+        await withTimeout(printReceiptFn(job.payload || null), PRINT_TIMEOUT_MS);
+        await markJobComplete(job.queueId || job.id);
+        setOrderStatus(job.id, 'printed');
+      } catch (err) {
+        const msg = err && err.message ? err.message : String(err);
+        console.error('[Backend print] Job failed:', job.id, msg);
+        setOrderStatus(job.id, 'failed', msg);
+        const isClientConfigError = /no printer selected|printer.*dropdown/i.test(msg);
+        if (isClientConfigError) {
+          await markJobSkipped(job.queueId || job.id, 'no_printer_selected');
+        } else {
+          try {
+            await markJobFailed(job.queueId || job.id, msg);
+          } catch (e) {
+            if (e.response?.status !== 404)
+              console.error('[Backend print] Failed to report failure to backend', e);
           }
         }
       }
