@@ -414,10 +414,30 @@ tr.queue-detail-row td {
   margin: 0;
 }
 
+.queue-section-header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
 .queue-count {
   font-size: 0.8rem;
   font-weight: 500;
   color: var(--pico-muted-color);
+}
+
+.queue-refresh-btn {
+  padding: 0.3rem 0.7rem;
+  font-size: 0.8rem;
+  border-radius: var(--pico-border-radius);
+  border: 1px solid var(--pico-muted-border-color);
+  background: var(--pico-background-color);
+  color: var(--pico-color);
+  cursor: pointer;
+}
+
+.queue-refresh-btn:hover {
+  background: var(--pico-muted-background);
 }
 
 .queue-toolbar {
