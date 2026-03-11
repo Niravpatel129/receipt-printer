@@ -1,4 +1,4 @@
-export default function AppHeader({ connection, currentView, onNavigate }) {
+export default function AppHeader({ connection, currentView, onNavigate, printingPaused, onTogglePrintingPaused }) {
   return (
     <header className="app-header">
       <div className="app-header-inner">
@@ -25,6 +25,15 @@ export default function AppHeader({ connection, currentView, onNavigate }) {
             onClick={() => onNavigate('settings')}
           >
             Settings
+          </button>
+          <button
+            type="button"
+            className={`printing-pause-btn ${printingPaused ? 'paused' : ''}`}
+            onClick={onTogglePrintingPaused}
+            title={printingPaused ? 'Resume auto-printing (queue still updates)' : 'Pause auto-printing only; queue still updates, manual print still works'}
+            aria-pressed={printingPaused}
+          >
+            {printingPaused ? 'Resume' : 'Pause'}
           </button>
           {connection.show && (
             <div

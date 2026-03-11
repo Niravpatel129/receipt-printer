@@ -1,6 +1,7 @@
 const axios = require('axios');
 const { loadBackendConfig } = require('../prefs');
 const { setOrderStatus } = require('../orderStatusStore');
+const { isPrintingPaused } = require('../printingPaused');
 
 const DEFAULT_POLL_MS = 5000;
 const PRINT_TIMEOUT_MS = 60000;
@@ -272,9 +273,14 @@ async function startBackendPolling(printReceiptFn, intervalMs = null) {
       const jobs = await fetchPendingJobs();
       lastPollSucceeded = true;
       consecutivePollFailures = 0;
-      if (jobs.length === 0) return;
+      const toPrint = jobs.filter((j) => {
+        const s = j.status != null ? String(j.status).toLowerCase() : '';
+        return s === 'completed';
+      });
+      if (toPrint.length === 0) return;
+      if (isPrintingPaused()) return;
       processing = true;
-      for (const job of jobs) {
+      for (const job of toPrint) {
         try {
           setOrderStatus(job.id, 'printing');
           await withTimeout(printReceiptFn(job.payload || null), PRINT_TIMEOUT_MS);
