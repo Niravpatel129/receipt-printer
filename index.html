@@ -275,12 +275,22 @@
       });
     }
 
+    let wasDisconnected = false;
     async function refreshConnectionStatus() {
-      const pollingActive = await window.printerApi.getBackendPollingActive();
-      if (pollingActive) {
-        showConnectionStatus(true, 'Connected');
+      const state = await window.printerApi.getBackendConnectionState();
+      if (state.pollingActive) {
+        const connected = state.lastPollSucceeded;
+        const message = connected ? 'Connected' : 'Reconnecting…';
+        if (wasDisconnected && connected) {
+          wasDisconnected = false;
+          toast('Backend reconnected', 'success');
+        } else if (!connected) {
+          wasDisconnected = true;
+        }
+        showConnectionStatus(connected, message);
         return;
       }
+      wasDisconnected = false;
       const config = await window.printerApi.getBackendConfig();
       if (!config.apiBaseUrl) {
         showConnectionStatus(false, 'API base URL not set');

@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('printerApi', {
   setBackendConfig: (config) => ipcRenderer.invoke('set-backend-config', config),
   fetchBackendPendingJobs: () => ipcRenderer.invoke('fetch-backend-pending-jobs'),
   getBackendPollingActive: () => ipcRenderer.invoke('get-backend-polling-active'),
+  getBackendConnectionState: () => ipcRenderer.invoke('get-backend-connection-state'),
   setOrderPrintStatus: (orderId, status, error) => ipcRenderer.invoke('set-order-print-status', orderId, status, error),
   cancelOrderInQueue: (orderId) => ipcRenderer.invoke('cancel-order-in-queue', orderId),
   skipOrderInQueue: (orderId) => ipcRenderer.invoke('skip-order-in-queue', orderId),

@@ -4,7 +4,20 @@ const { setOrderStatus } = require('../orderStatusStore');
 
 const DEFAULT_POLL_MS = 5000;
 const PRINT_TIMEOUT_MS = 60000;
+const REQUEST_TIMEOUT_MS = 15000;
+const MAX_PENDING_STATUS_UPDATES = 100;
 let pollTimer = null;
+let lastPollSucceeded = true;
+let consecutivePollFailures = 0;
+let isFlushingPendingUpdates = false;
+const pendingStatusUpdates = [];
+
+function isNetworkError(err) {
+  if (!err || typeof err !== 'object') return false;
+  if (err.code && ['ECONNREFUSED', 'ETIMEDOUT', 'ENOTFOUND', 'ENETUNREACH', 'ECONNRESET', 'EAI_AGAIN', 'ECONNABORTED'].includes(err.code)) return true;
+  if (err.response === undefined && err.request !== undefined) return true;
+  return false;
+}
 
 function withTimeout(promise, ms) {
   return new Promise((resolve, reject) => {
@@ -83,7 +96,7 @@ async function fetchPendingJobs() {
   const kitchenSecret = getKitchenSecret();
   if (!kitchenSecret) return [];
   const url = `${baseURL}/api/kitchen/print-queue?secret=${encodeURIComponent(kitchenSecret)}`;
-  const { data } = await axios.get(url, { headers });
+  const { data } = await axios.get(url, { headers, timeout: REQUEST_TIMEOUT_MS });
   const orders = data.orders || data.jobs || (Array.isArray(data) ? data : []);
   const toIdString = (v) => {
     if (v == null) return '';
@@ -121,7 +134,7 @@ async function checkHealth() {
   const { baseURL, headers } = getAxiosConfig();
   if (!baseURL) return false;
   try {
-    const { data, status } = await axios.get(`${baseURL}/api/health`, { headers });
+    const { data, status } = await axios.get(`${baseURL}/api/health`, { headers, timeout: REQUEST_TIMEOUT_MS });
     return status === 200 && data && (data.status === 'ok' || data.ok === true);
   } catch {
     return false;
@@ -136,21 +149,35 @@ function secretQuery() {
 async function markJobComplete(id) {
   const { baseURL, headers } = getAxiosConfig();
   if (!baseURL) return;
-  await axios.patch(
-    `${baseURL}/api/kitchen/orders/${encodeURIComponent(id)}${secretQuery()}`,
-    { printed: true },
-    { headers },
-  );
+  try {
+    await axios.patch(
+      `${baseURL}/api/kitchen/orders/${encodeURIComponent(id)}${secretQuery()}`,
+      { printed: true },
+      { headers, timeout: REQUEST_TIMEOUT_MS },
+    );
+  } catch (e) {
+    if (!isFlushingPendingUpdates && isNetworkError(e) && pendingStatusUpdates.length < MAX_PENDING_STATUS_UPDATES) {
+      pendingStatusUpdates.push({ type: 'complete', jobId: id });
+    }
+    throw e;
+  }
 }
 
 async function markJobFailed(id, message) {
   const { baseURL, headers } = getAxiosConfig();
   if (!baseURL) return;
-  await axios.post(
-    `${baseURL}/api/kitchen/print-jobs/${encodeURIComponent(id)}/failed${secretQuery()}`,
-    { message: message || 'Print failed' },
-    { headers },
-  );
+  try {
+    await axios.post(
+      `${baseURL}/api/kitchen/print-jobs/${encodeURIComponent(id)}/failed${secretQuery()}`,
+      { message: message || 'Print failed' },
+      { headers, timeout: REQUEST_TIMEOUT_MS },
+    );
+  } catch (e) {
+    if (!isFlushingPendingUpdates && isNetworkError(e) && pendingStatusUpdates.length < MAX_PENDING_STATUS_UPDATES) {
+      pendingStatusUpdates.push({ type: 'failed', jobId: id, message: message || 'Print failed' });
+    }
+    throw e;
+  }
 }
 
 async function markJobSkipped(id, reason) {
@@ -160,11 +187,14 @@ async function markJobSkipped(id, reason) {
     await axios.post(
       `${baseURL}/api/kitchen/print-jobs/${encodeURIComponent(id)}/skipped${secretQuery()}`,
       { reason: reason || 'unknown' },
-      { headers },
+      { headers, timeout: REQUEST_TIMEOUT_MS },
     );
   } catch (e) {
     if (e.response?.status !== 404)
       console.error('[Backend print] Failed to report skipped to backend', e);
+    if (!isFlushingPendingUpdates && isNetworkError(e) && pendingStatusUpdates.length < MAX_PENDING_STATUS_UPDATES) {
+      pendingStatusUpdates.push({ type: 'skipped', jobId: id, reason: reason || 'unknown' });
+    }
   }
 }
 
@@ -175,7 +205,7 @@ async function markJobCancel(id) {
     await axios.post(
       `${baseURL}/api/kitchen/print-jobs/${encodeURIComponent(id)}/cancel${secretQuery()}`,
       null,
-      { headers },
+      { headers, timeout: REQUEST_TIMEOUT_MS },
     );
   } catch (e) {
     if (e.response?.status !== 404)
@@ -189,9 +219,33 @@ async function addOrderToPrintQueue(orderId) {
   const { data } = await axios.post(
     `${baseURL}/api/kitchen/orders/${encodeURIComponent(orderId)}/print${secretQuery()}`,
     {},
-    { headers },
+    { headers, timeout: REQUEST_TIMEOUT_MS },
   );
   return data;
+}
+
+async function flushPendingStatusUpdates() {
+  const snapshot = pendingStatusUpdates.splice(0, pendingStatusUpdates.length);
+  const remaining = [];
+  isFlushingPendingUpdates = true;
+  try {
+    for (const entry of snapshot) {
+      try {
+        if (entry.type === 'complete') {
+          await markJobComplete(entry.jobId);
+        } else if (entry.type === 'failed') {
+          await markJobFailed(entry.jobId, entry.message);
+        } else if (entry.type === 'skipped') {
+          await markJobSkipped(entry.jobId, entry.reason);
+        }
+      } catch {
+        remaining.push(entry);
+      }
+    }
+  } finally {
+    isFlushingPendingUpdates = false;
+  }
+  pendingStatusUpdates.push(...remaining);
 }
 
 async function startBackendPolling(printReceiptFn, intervalMs = null) {
@@ -206,13 +260,18 @@ async function startBackendPolling(printReceiptFn, intervalMs = null) {
     console.log('[Backend print] Health check failed; not starting polling');
     return;
   }
+  lastPollSucceeded = true;
+  consecutivePollFailures = 0;
   const { backendPollIntervalMs } = loadBackendConfig();
   const ms = intervalMs ?? backendPollIntervalMs ?? DEFAULT_POLL_MS;
   let processing = false;
   pollTimer = setInterval(async () => {
     if (processing) return;
     try {
+      await flushPendingStatusUpdates();
       const jobs = await fetchPendingJobs();
+      lastPollSucceeded = true;
+      consecutivePollFailures = 0;
       if (jobs.length === 0) return;
       processing = true;
       for (const job of jobs) {
@@ -239,6 +298,8 @@ async function startBackendPolling(printReceiptFn, intervalMs = null) {
         }
       }
     } catch (err) {
+      lastPollSucceeded = false;
+      consecutivePollFailures += 1;
       console.error('[Backend print] Poll error', err);
     } finally {
       processing = false;
@@ -251,10 +312,20 @@ function stopBackendPolling() {
     clearInterval(pollTimer);
     pollTimer = null;
   }
+  lastPollSucceeded = true;
+  consecutivePollFailures = 0;
 }
 
 function isPollingActive() {
   return pollTimer != null;
+}
+
+function getConnectionState() {
+  return {
+    pollingActive: pollTimer != null,
+    lastPollSucceeded: lastPollSucceeded,
+    consecutivePollFailures: consecutivePollFailures,
+  };
 }
 
 module.exports = {
@@ -267,4 +338,5 @@ module.exports = {
   startBackendPolling,
   stopBackendPolling,
   isPollingActive,
+  getConnectionState,
 };

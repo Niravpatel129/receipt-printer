@@ -3,7 +3,7 @@ const { autoUpdater } = require('electron-updater');
 const { loadPrinterPreference, savePrinterPreference, loadBackendConfig, saveBackendConfig } = require('../prefs');
 const { printReceipt } = require('../printer');
 const { enqueue, getQueue } = require('../queue');
-const { fetchPendingJobs, isPollingActive, markJobCancel, markJobSkipped, startBackendPolling, stopBackendPolling } = require('../services/backendPrintService');
+const { fetchPendingJobs, getConnectionState, isPollingActive, markJobCancel, markJobSkipped, startBackendPolling, stopBackendPolling } = require('../services/backendPrintService');
 const { getAllStatuses, setOrderStatus } = require('../orderStatusStore');
 
 function registerIpcHandlers() {
@@ -37,6 +37,7 @@ function registerIpcHandlers() {
     await startBackendPolling((payload) => printReceipt(payload));
   });
   ipcMain.handle('get-backend-polling-active', () => isPollingActive());
+  ipcMain.handle('get-backend-connection-state', () => getConnectionState());
   ipcMain.handle('fetch-backend-pending-jobs', async () => {
     try {
       const jobs = await fetchPendingJobs();
