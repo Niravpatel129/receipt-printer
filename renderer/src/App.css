@@ -36,7 +36,9 @@ body {
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .app-header {
@@ -136,8 +138,9 @@ body {
 }
 
 .app-nav .printing-pause-btn {
-  padding: 0.35rem 0.75rem;
-  margin-left: 0.5rem;
+  margin-bottom: 0;
+  /* padding: 0.35rem 0.75rem; */
+  /* margin-left: 0.5rem; */
   font-size: 0.8rem;
   font-weight: 600;
   border: 1px solid var(--pico-muted-border-color);
@@ -609,12 +612,26 @@ tr.queue-detail-row td {
   font-size: 0.8rem;
 }
 
-.update-status-checking  { color: var(--pico-muted-color); }
-.update-status-up-to-date { color: var(--status-printed); }
-.update-status-available  { color: var(--status-pending); font-weight: 600; }
-.update-status-downloading { color: var(--status-printing); }
-.update-status-downloaded { color: var(--status-printed); font-weight: 600; }
-.update-status-error      { color: var(--status-failed); }
+.update-status-checking {
+  color: var(--pico-muted-color);
+}
+.update-status-up-to-date {
+  color: var(--status-printed);
+}
+.update-status-available {
+  color: var(--status-pending);
+  font-weight: 600;
+}
+.update-status-downloading {
+  color: var(--status-printing);
+}
+.update-status-downloaded {
+  color: var(--status-printed);
+  font-weight: 600;
+}
+.update-status-error {
+  color: var(--status-failed);
+}
 
 @keyframes toast-in {
   from {
