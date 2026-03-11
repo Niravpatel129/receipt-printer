@@ -154,8 +154,16 @@ function OrderDetailRow({ order, status }) {
   );
 }
 
-function OrderRow({ order, onShowJson, onRefresh, confirmDialog, addToast, api }) {
-  const [detailOpen, setDetailOpen] = useState(false);
+function OrderRow({
+  order,
+  onShowJson,
+  onRefresh,
+  confirmDialog,
+  addToast,
+  api,
+  detailOpen,
+  onToggleDetails,
+}) {
   const [printing, setPrinting] = useState(false);
 
   const dateStr = order.date ? new Date(order.date).toLocaleString() : '';
@@ -219,7 +227,7 @@ function OrderRow({ order, onShowJson, onRefresh, confirmDialog, addToast, api }
             aria-label={detailOpen ? 'Hide details' : 'Show details'}
             onClick={(e) => {
               e.stopPropagation();
-              setDetailOpen((o) => !o);
+              onToggleDetails(order.id);
             }}
           >
             {detailOpen ? '▲' : '▼'}
@@ -299,15 +307,29 @@ export default function QueueTable({
   api,
 }) {
   const [search, setSearch] = useState('');
+  const [openOrderId, setOpenOrderId] = useState(null);
   const filtered = useMemo(() => filterOrders(orders || [], search), [orders, search]);
+
+  const handleToggleDetails = (orderId) => {
+    setOpenOrderId((current) => (current === orderId ? null : orderId));
+  };
 
   return (
     <section className='section-card queue-section'>
       <div className='queue-section-header'>
         <h2>Print queue</h2>
-        <span className='queue-count'>
-          {filtered.length} order{filtered.length !== 1 ? 's' : ''}
-        </span>
+        <div className='queue-section-header-right'>
+          <span className='queue-count'>
+            {filtered.length} order{filtered.length !== 1 ? 's' : ''}
+          </span>
+          <button
+            type='button'
+            className='queue-refresh-btn'
+            onClick={() => onRefresh()}
+          >
+            Refresh
+          </button>
+        </div>
       </div>
       <div className='queue-toolbar'>
         <input
@@ -347,6 +369,8 @@ export default function QueueTable({
                   confirmDialog={confirmDialog}
                   addToast={addToast}
                   api={api}
+                  detailOpen={openOrderId === order.id}
+                  onToggleDetails={handleToggleDetails}
                 />
               ))}
             </tbody>
