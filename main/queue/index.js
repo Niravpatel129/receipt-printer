@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { app } = require('electron');
+const { isPrintingPaused } = require('../printingPaused');
 
 function getQueuePath() {
   return path.join(app.getPath('userData'), 'print-queue.json');
@@ -82,6 +83,7 @@ function markFailed(id, error) {
 function startPolling(processJob, intervalMs = DEFAULT_POLL_MS) {
   if (pollTimer) return;
   pollTimer = setInterval(async () => {
+    if (isPrintingPaused()) return;
     const job = getNextPending();
     if (!job) return;
     try {

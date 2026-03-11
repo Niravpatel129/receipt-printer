@@ -5,6 +5,7 @@ const { printReceipt } = require('../printer');
 const { enqueue, getQueue } = require('../queue');
 const { fetchPendingJobs, getConnectionState, isPollingActive, markJobCancel, markJobSkipped, startBackendPolling, stopBackendPolling } = require('../services/backendPrintService');
 const { getAllStatuses, setOrderStatus } = require('../orderStatusStore');
+const { isPrintingPaused, setPrintingPaused } = require('../printingPaused');
 
 function registerIpcHandlers() {
   ipcMain.handle('get-app-version', () => app.getVersion());
@@ -29,6 +30,8 @@ function registerIpcHandlers() {
   ipcMain.handle('print-receipt', (_, payload) => printReceipt(payload));
   ipcMain.handle('enqueue-print-job', (_, payload) => enqueue(payload));
   ipcMain.handle('get-print-queue', () => getQueue());
+  ipcMain.handle('get-printing-paused', () => isPrintingPaused());
+  ipcMain.handle('set-printing-paused', (_, paused) => setPrintingPaused(paused));
 
   ipcMain.handle('get-backend-config', () => loadBackendConfig());
   ipcMain.handle('set-backend-config', async (_, config) => {

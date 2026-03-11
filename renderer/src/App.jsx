@@ -23,6 +23,7 @@ export default function App() {
   const [backendStatus, setBackendStatus] = useState('');
   const [orders, setOrders] = useState([]);
   const [view, setView] = useState('queue');
+  const [printingPaused, setPrintingPausedState] = useState(false);
   const [orderJsonModal, setOrderJsonModal] = useState(null);
   const [confirm, setConfirm] = useState(null);
   const [toasts, setToasts] = useState([]);
@@ -102,13 +103,15 @@ export default function App() {
     setWindowTitle(false, 'Loading…');
     let mounted = true;
     (async () => {
-      const [printersList, savedPrinter, cfg] = await Promise.all([
+      const [printersList, savedPrinter, cfg, paused] = await Promise.all([
         api.getPrinters(),
         api.getPrinterPreference(),
         api.getBackendConfig(),
+        api.getPrintingPaused(),
       ]);
       if (!mounted) return;
       setPrinters(printersList);
+      setPrintingPausedState(paused);
       setBackendConfig({
         kitchenSecret: cfg.kitchenSecret || '',
         backendPollIntervalMs: cfg.backendPollIntervalMs ?? 5000,
@@ -177,6 +180,12 @@ export default function App() {
     setBackendConfig((c) => ({ ...c, ...updates }));
   }, []);
 
+  const handleTogglePrintingPaused = useCallback(async () => {
+    const next = await api.setPrintingPaused(!printingPaused);
+    setPrintingPausedState(next);
+    addToast(next ? 'Printing paused' : 'Printing resumed', 'success');
+  }, [api, printingPaused, addToast]);
+
   const handleNavigate = useCallback((nextView) => {
     setView(nextView);
   }, []);
@@ -192,7 +201,13 @@ export default function App() {
 
   return (
     <>
-      <AppHeader connection={connection} currentView={view} onNavigate={handleNavigate} />
+      <AppHeader
+        connection={connection}
+        currentView={view}
+        onNavigate={handleNavigate}
+        printingPaused={printingPaused}
+        onTogglePrintingPaused={handleTogglePrintingPaused}
+      />
 
       <main className="app-main">
         <div className="app-content" id="panel-queue" role="tabpanel" aria-labelledby="tab-queue" hidden={view !== 'queue'}>

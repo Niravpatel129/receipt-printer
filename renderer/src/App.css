@@ -135,6 +135,33 @@ body {
   border-bottom: 2px solid var(--pico-primary);
 }
 
+.app-nav .printing-pause-btn {
+  padding: 0.35rem 0.75rem;
+  margin-left: 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border: 1px solid var(--pico-muted-border-color);
+  border-radius: var(--pico-border-radius);
+  background: var(--pico-background-color);
+  color: var(--pico-color);
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.app-nav .printing-pause-btn:hover {
+  background: var(--pico-muted-background);
+}
+
+.app-nav .printing-pause-btn.paused {
+  background: rgba(184, 134, 11, 0.15);
+  color: var(--status-pending);
+  border-color: rgba(184, 134, 11, 0.4);
+}
+
+.app-nav .printing-pause-btn.paused:hover {
+  background: rgba(184, 134, 11, 0.25);
+}
+
 .app-main {
   max-width: 1600px;
   margin: 0 auto;

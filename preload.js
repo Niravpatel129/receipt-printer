@@ -7,6 +7,8 @@ contextBridge.exposeInMainWorld('printerApi', {
   printReceipt: (payload) => ipcRenderer.invoke('print-receipt', payload),
   enqueuePrintJob: (payload) => ipcRenderer.invoke('enqueue-print-job', payload),
   getPrintQueue: () => ipcRenderer.invoke('get-print-queue'),
+  getPrintingPaused: () => ipcRenderer.invoke('get-printing-paused'),
+  setPrintingPaused: (paused) => ipcRenderer.invoke('set-printing-paused', paused),
   getBackendConfig: () => ipcRenderer.invoke('get-backend-config'),
   setBackendConfig: (config) => ipcRenderer.invoke('set-backend-config', config),
   fetchBackendPendingJobs: () => ipcRenderer.invoke('fetch-backend-pending-jobs'),
