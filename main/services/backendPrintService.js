@@ -177,7 +177,6 @@ async function fetchHistoryJobs(limit = 20, page = 1) {
     kitchenSecret,
   )}&limit=${encodeURIComponent(limit)}&page=${encodeURIComponent(page)}`;
   const { data } = await axios.get(url, { headers, timeout: REQUEST_TIMEOUT_MS });
-  console.log('🚀 ~ data:', data);
   const orders = data.orders || data.jobs || (Array.isArray(data) ? data : []);
   const toIdString = (v) => {
     if (v == null) return '';
