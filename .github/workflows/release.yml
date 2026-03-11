@@ -44,6 +44,6 @@ jobs:
           git push "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" HEAD:${{ github.ref_name }} --follow-tags
 
       - name: Build and publish
-        run: npm run build && electron-builder --win portable --publish always
+        run: npm run dist:win:ci
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
