@@ -1,6 +1,7 @@
 const os = require('os');
 const { app } = require('electron');
 const { postLogs } = require('./services/backendPrintService');
+const { appendLocalLog } = require('./localLog');
 
 function buildLogEntry(level, message, meta) {
   return {
@@ -16,6 +17,7 @@ function buildLogEntry(level, message, meta) {
 
 async function log(level, message, meta) {
   const entry = buildLogEntry(level, message, meta);
+  appendLocalLog(entry);
   try {
     await postLogs(entry);
   } catch (_) {}

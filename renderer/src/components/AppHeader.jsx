@@ -1,4 +1,11 @@
-export default function AppHeader({ connection, currentView, onNavigate, printingPaused, onTogglePrintingPaused }) {
+export default function AppHeader({
+  connection,
+  currentView,
+  onNavigate,
+  printingPaused,
+  onTogglePrintingPaused,
+  onShowLogs,
+}) {
   return (
     <header className="app-header">
       <div className="app-header-inner">
@@ -34,6 +41,14 @@ export default function AppHeader({ connection, currentView, onNavigate, printin
             aria-pressed={printingPaused}
           >
             {printingPaused ? 'Resume' : 'Pause'}
+          </button>
+          <button
+            type="button"
+            className="printing-pause-btn"
+            onClick={onShowLogs}
+            title="View local logs"
+          >
+            Logs
           </button>
           {connection.show && (
             <div

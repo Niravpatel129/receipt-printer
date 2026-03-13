@@ -5,6 +5,7 @@ import SettingsView from './views/SettingsView';
 import OrderJsonModal from './components/OrderJsonModal';
 import ConfirmModal from './components/ConfirmModal';
 import ToastContainer from './components/ToastContainer';
+import LogModal from './components/LogModal';
 
 const TITLE_BASE = 'Receipt Printer';
 
@@ -27,6 +28,8 @@ export default function App() {
   const [orderJsonModal, setOrderJsonModal] = useState(null);
   const [confirm, setConfirm] = useState(null);
   const [toasts, setToasts] = useState([]);
+  const [logModalOpen, setLogModalOpen] = useState(false);
+  const [logs, setLogs] = useState('');
   const confirmResolveRef = useRef(null);
 
   const api = window.printerApi;
@@ -190,6 +193,16 @@ export default function App() {
     setView(nextView);
   }, []);
 
+  const handleShowLogs = useCallback(async () => {
+    try {
+      const text = await api.getLocalLogs();
+      setLogs(text || '');
+    } catch (e) {
+      setLogs('Failed to load logs: ' + e.message);
+    }
+    setLogModalOpen(true);
+  }, [api]);
+
   if (initialLoad) {
     return (
       <div className="app-loading">
@@ -207,6 +220,7 @@ export default function App() {
         onNavigate={handleNavigate}
         printingPaused={printingPaused}
         onTogglePrintingPaused={handleTogglePrintingPaused}
+        onShowLogs={handleShowLogs}
       />
 
       <main className="app-main">
@@ -247,6 +261,10 @@ export default function App() {
           onConfirm={() => resolveConfirm(true)}
           onCancel={() => resolveConfirm(false)}
         />
+      )}
+
+      {logModalOpen && (
+        <LogModal logs={logs} onClose={() => setLogModalOpen(false)} />
       )}
 
       <ToastContainer toasts={toasts} />
