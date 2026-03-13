@@ -177,7 +177,6 @@ function OrderRow({
   const statusClass = 'status-' + (status || 'pending');
   const canPrint = status !== 'printed' && status !== 'printing';
   const canRetry = status === 'failed';
-  const canSkip = status === 'pending' || status === 'failed';
   const canCancel = status !== 'printed' && status !== 'cancelled';
 
   const handlePrint = async () => {
@@ -203,11 +202,6 @@ function OrderRow({
     if (!ok) return;
     await api.cancelOrderInQueue(order.id);
     addToast('Order removed from queue');
-    onRefresh();
-  };
-
-  const handleSkip = async () => {
-    await api.skipOrderInQueue(order.id);
     onRefresh();
   };
 
@@ -264,18 +258,6 @@ function OrderRow({
                 }}
               >
                 {canRetry ? 'Retry' : 'Print now'}
-              </button>
-            )}
-            {canSkip && (
-              <button
-                type='button'
-                className='queue-action-btn skip-btn'
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleSkip();
-                }}
-              >
-                Skip
               </button>
             )}
             {canCancel && (
