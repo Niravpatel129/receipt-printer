@@ -7,6 +7,7 @@ const DEFAULT_POLL_MS = 5000;
 const PRINT_TIMEOUT_MS = 60000;
 const REQUEST_TIMEOUT_MS = 15000;
 const MAX_PENDING_STATUS_UPDATES = 100;
+const TERMINAL_STATUSES = ['printed', 'cancelled', 'failed', 'skipped'];
 let pollTimer = null;
 let lastPollSucceeded = true;
 let consecutivePollFailures = 0;
@@ -45,6 +46,15 @@ function withTimeout(promise, ms) {
         reject(e);
       });
   });
+}
+
+function shouldProcessJob(backendStatus, localStatus) {
+  const b = backendStatus ? String(backendStatus).toLowerCase() : null;
+  const l = localStatus ? String(localStatus).toLowerCase() : null;
+  if (TERMINAL_STATUSES.includes(l)) return false;
+  if (TERMINAL_STATUSES.includes(b)) return false;
+  if (l === 'printing') return false;
+  return true;
 }
 
 function getAxiosConfig() {
@@ -400,13 +410,12 @@ async function startBackendPolling(printReceiptFn, intervalMs = null) {
       await flushPendingStatusUpdates();
       const jobs = await fetchPendingJobs();
       const statuses = getAllStatuses();
-      const terminal = ['printed', 'cancelled', 'failed', 'skipped'];
       for (const job of jobs) {
         const backend = job.printStatus != null ? String(job.printStatus).toLowerCase() : 'queued';
         const idKey = job.id != null ? String(job.id) : '';
         const local = idKey ? statuses[idKey] : null;
         const localStatus = local && local.status ? String(local.status).toLowerCase() : null;
-        if (backend === 'queued' && terminal.includes(localStatus)) {
+        if (backend === 'queued' && TERMINAL_STATUSES.includes(localStatus)) {
           try {
             await markJobComplete(job.queueId || job.id);
           } catch (e) {
@@ -421,8 +430,7 @@ async function startBackendPolling(printReceiptFn, intervalMs = null) {
         const idKey = j.id != null ? String(j.id) : '';
         const local = idKey ? statuses[idKey] : null;
         const localStatus = local && local.status ? String(local.status).toLowerCase() : null;
-        const effective = terminal.includes(localStatus) ? localStatus : backend;
-        return effective === 'queued';
+        return shouldProcessJob(backend, localStatus);
       });
       if (queuedJobs.length === 0) return;
       if (isPrintingPaused()) return;

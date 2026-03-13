@@ -1,12 +1,37 @@
 const { ipcMain, app } = require('electron');
 const { autoUpdater } = require('electron-updater');
-const { loadPrinterPreference, savePrinterPreference, loadBackendConfig, saveBackendConfig } = require('../prefs');
+const {
+  loadPrinterPreference,
+  savePrinterPreference,
+  loadBackendConfig,
+  saveBackendConfig,
+} = require('../prefs');
 const { printReceipt } = require('../printer');
 const { enqueue, getQueue } = require('../queue');
-const { fetchPendingJobs, fetchHistoryJobs, getConnectionState, isPollingActive, markJobCancel, markJobSkipped, startBackendPolling, stopBackendPolling } = require('../services/backendPrintService');
+const {
+  fetchPendingJobs,
+  fetchHistoryJobs,
+  getConnectionState,
+  isPollingActive,
+  markJobCancel,
+  markJobSkipped,
+  startBackendPolling,
+  stopBackendPolling,
+} = require('../services/backendPrintService');
 const { getAllStatuses, setOrderStatus } = require('../orderStatusStore');
 const { isPrintingPaused, setPrintingPaused } = require('../printingPaused');
 const logger = require('../logger');
+
+const TERMINAL_STATUSES = ['printed', 'cancelled', 'failed', 'skipped'];
+
+function computeUiPrintStatus(backendStatus, localStatus) {
+  const b = backendStatus ? String(backendStatus).toLowerCase() : null;
+  const l = localStatus ? String(localStatus).toLowerCase() : null;
+  if (TERMINAL_STATUSES.includes(l)) return l;
+  if (l === 'printing' || l === 'pending') return l;
+  if (TERMINAL_STATUSES.includes(b)) return b;
+  return 'pending';
+}
 
 function registerIpcHandlers() {
   ipcMain.handle('get-app-version', () => app.getVersion());
@@ -56,13 +81,12 @@ function registerIpcHandlers() {
     try {
       const jobs = await fetchPendingJobs();
       const statuses = getAllStatuses();
-      const terminal = ['printed', 'cancelled', 'failed', 'skipped'];
       const result = jobs.map((j) => {
         const idKey = j.id != null ? String(j.id) : '';
         const s = idKey ? statuses[idKey] : null;
         const backendStatus = j.printStatus ? String(j.printStatus).toLowerCase() : null;
-        const useBackend = backendStatus && terminal.includes(backendStatus);
-        const printStatus = useBackend ? backendStatus : (s ? s.status : 'pending');
+        const localStatus = s && s.status ? String(s.status).toLowerCase() : null;
+        const printStatus = computeUiPrintStatus(backendStatus, localStatus);
         return { ...j, printStatus, printError: s && s.error, printedAt: s && s.at };
       });
       const dateTs = (j) => (j.date ? new Date(j.date).getTime() : 0);
