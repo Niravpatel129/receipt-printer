@@ -11,6 +11,7 @@ const DEFAULT_RECEIPT = {
   city: 'BRAMPTON, ON',
   orderNumber: '0411',
   customerName: 'MARKO',
+  customerPhone: '555-555-5555',
   date: 'FEB 7, 2026',
   items: [
     {
@@ -52,7 +53,11 @@ function buildReceipt(printer, data = null) {
   printer.println(d.city);
   printer.newLine();
   printer.alignLeft();
-  printer.println(`ORDER: #${d.orderNumber} FOR ${d.customerName}`);
+  printer.println(d.customerName);
+  if (d.customerPhone) {
+    printer.println(d.customerPhone);
+  }
+  printer.println(`ORDER: #${d.orderNumber}`);
   printer.println(`DATE: ${d.date}`);
   drawDashed(printer);
   printer.bold(true);
