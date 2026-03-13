@@ -1,6 +1,7 @@
 const { ThermalPrinter, PrinterTypes } = require('node-thermal-printer');
 const { loadPrinterPreference } = require('../prefs');
 const { buildReceipt } = require('./receipt');
+const logger = require('../logger');
 
 const SETTLE_MS = 3000;
 const PRINT_TIMEOUT_MS = 60000;
@@ -11,7 +12,7 @@ function createMockDriver() {
     getPrinter: (name) => ({ name, displayName: name, status: 'IDLE' }),
     printDirect: (opts) => {
       const size = opts.data ? opts.data.length : 0;
-      console.log('[Mock printer] Print job:', size, 'bytes (development mode)');
+      logger.info('Mock printer print job', { size });
       setTimeout(() => (opts.success && opts.success('mock-job')), 0);
     }
   };
@@ -83,13 +84,15 @@ const printerDriver = electronPrinter
 async function printReceipt(payload = null) {
   const printerName = loadPrinterPreference();
   if (!printerName) {
-    throw new Error('No printer selected. Pick a printer from the dropdown first.');
+    const msg = 'No printer selected. Pick a printer from the dropdown first.';
+    logger.warn(msg);
+    throw new Error(msg);
   }
   const selectedPrinter = printerDriver.getPrinter(printerName);
   if (selectedPrinter && selectedPrinter.status && String(selectedPrinter.status) !== 'IDLE') {
-    throw new Error(
-      `Printer is not ready (${selectedPrinter.status}). Check for paper, jams, or offline state.`,
-    );
+    const msg = `Printer is not ready (${selectedPrinter.status}). Check for paper, jams, or offline state.`;
+    logger.warn(msg, { printerName, status: selectedPrinter.status });
+    throw new Error(msg);
   }
   const printer = new ThermalPrinter({
     type: PrinterTypes.EPSON,
@@ -97,12 +100,14 @@ async function printReceipt(payload = null) {
     interface: 'printer:' + printerName,
     driver: printerDriver,
   });
+  logger.info('Starting print', { printerName, hasPayload: Boolean(payload) });
   buildReceipt(printer, payload);
   await withTimeout(
     printer.execute(),
     PRINT_TIMEOUT_MS,
     'Printer did not finish in time. It may be out of paper, jammed, or offline.',
   );
+  logger.info('Print finished', { printerName });
   return { ok: true };
 }
 

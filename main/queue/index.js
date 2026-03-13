@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { app } = require('electron');
+const logger = require('../logger');
 const { isPrintingPaused } = require('../printingPaused');
 
 function getQueuePath() {
@@ -43,6 +44,7 @@ function enqueue(payload = null) {
   };
   jobs.push(job);
   saveQueue(jobs);
+  logger.info('Enqueued local print job', { jobId: job.id });
   return job.id;
 }
 
@@ -66,6 +68,7 @@ function markDone(id) {
     j.status = 'done';
     j.completedAt = Date.now();
     saveQueue(jobs);
+    logger.info('Marked local job done', { jobId: id });
   }
 }
 
@@ -77,6 +80,7 @@ function markFailed(id, error) {
     j.error = error && error.message ? error.message : String(error);
     j.completedAt = Date.now();
     saveQueue(jobs);
+    logger.error('Local job failed', { jobId: id, error: j.error });
   }
 }
 
@@ -87,10 +91,11 @@ function startPolling(processJob, intervalMs = DEFAULT_POLL_MS) {
     const job = getNextPending();
     if (!job) return;
     try {
+      logger.info('Processing local print job', { jobId: job.id });
       await processJob(job.payload);
       markDone(job.id);
     } catch (err) {
-      console.error('[Print queue] Job failed:', job.id, err);
+      logger.error('Processing local print job failed', { jobId: job.id, error: err && err.message ? err.message : String(err) });
       markFailed(job.id, err);
     }
   }, intervalMs);
