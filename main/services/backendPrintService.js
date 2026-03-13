@@ -2,6 +2,7 @@ const axios = require('axios');
 const { loadBackendConfig } = require('../prefs');
 const { setOrderStatus, getAllStatuses } = require('../orderStatusStore');
 const { isPrintingPaused } = require('../printingPaused');
+const { appendLocalLog } = require('../localLog');
 
 const DEFAULT_POLL_MS = 5000;
 const PRINT_TIMEOUT_MS = 60000;
@@ -45,6 +46,16 @@ function withTimeout(promise, ms) {
         clearTimeout(t);
         reject(e);
       });
+  });
+}
+
+function logBackend(level, message, meta) {
+  appendLocalLog({
+    level,
+    message: String(message),
+    meta: meta || {},
+    source: 'backendPrint',
+    timestamp: new Date().toISOString(),
   });
 }
 
@@ -115,9 +126,15 @@ function orderToReceiptPayload(order) {
 
 async function fetchPendingJobs() {
   const { baseURL, headers } = getAxiosConfig();
-  if (!baseURL) return [];
+  if (!baseURL) {
+    logBackend('warn', 'Backend print: apiBaseUrl not set, skipping fetchPendingJobs');
+    return [];
+  }
   const kitchenSecret = getKitchenSecret();
-  if (!kitchenSecret) return [];
+  if (!kitchenSecret) {
+    logBackend('warn', 'Backend print: kitchenSecret not set, skipping fetchPendingJobs');
+    return [];
+  }
   const url = `${baseURL}/api/kitchen/print-queue?secret=${encodeURIComponent(kitchenSecret)}`;
   const { data } = await axios.get(url, { headers, timeout: REQUEST_TIMEOUT_MS });
   const orders = data.orders || data.jobs || (Array.isArray(data) ? data : []);
@@ -180,9 +197,15 @@ async function fetchPendingJobs() {
 
 async function fetchHistoryJobs(limit = 20, page = 1) {
   const { baseURL, headers } = getAxiosConfig();
-  if (!baseURL) return [];
+  if (!baseURL) {
+    logBackend('warn', 'Backend print: apiBaseUrl not set, skipping fetchHistoryJobs');
+    return [];
+  }
   const kitchenSecret = getKitchenSecret();
-  if (!kitchenSecret) return [];
+  if (!kitchenSecret) {
+    logBackend('warn', 'Backend print: kitchenSecret not set, skipping fetchHistoryJobs');
+    return [];
+  }
   const url = `${baseURL}/api/kitchen/print-queue/history?secret=${encodeURIComponent(
     kitchenSecret,
   )}&limit=${encodeURIComponent(limit)}&page=${encodeURIComponent(page)}`;
@@ -247,7 +270,10 @@ async function fetchHistoryJobs(limit = 20, page = 1) {
 
 async function checkHealth() {
   const { baseURL, headers } = getAxiosConfig();
-  if (!baseURL) return false;
+  if (!baseURL) {
+    logBackend('warn', 'Backend print: apiBaseUrl not set, health check failed');
+    return false;
+  }
   try {
     const { data, status } = await axios.get(`${baseURL}/api/health`, {
       headers,
@@ -255,6 +281,7 @@ async function checkHealth() {
     });
     return status === 200 && data && (data.status === 'ok' || data.ok === true);
   } catch {
+    logBackend('error', 'Backend print: health check request failed');
     return false;
   }
 }
@@ -396,20 +423,30 @@ async function flushPendingStatusUpdates() {
 async function startBackendPolling(printReceiptFn, intervalMs = null) {
   if (pollTimer) return;
   const { apiBaseUrl } = loadBackendConfig();
-  if (!apiBaseUrl || !apiBaseUrl.trim()) return;
+  if (!apiBaseUrl || !apiBaseUrl.trim()) {
+    logBackend('warn', 'Backend print: polling not started, apiBaseUrl not configured');
+    return;
+  }
   const ok = await checkHealth();
-  if (!ok) return;
+  if (!ok) {
+    logBackend('warn', 'Backend print: polling not started, backend health check failed');
+    return;
+  }
   lastPollSucceeded = true;
   consecutivePollFailures = 0;
   const { backendPollIntervalMs } = loadBackendConfig();
   const ms = intervalMs ?? backendPollIntervalMs ?? DEFAULT_POLL_MS;
   let processing = false;
+  logBackend('info', 'Backend print: starting polling', { intervalMs: ms, apiBaseUrl });
   pollTimer = setInterval(async () => {
     if (processing) return;
     try {
       await flushPendingStatusUpdates();
       const jobs = await fetchPendingJobs();
       const statuses = getAllStatuses();
+      logBackend('info', 'Backend print: fetched jobs', {
+        count: jobs.length,
+      });
       for (const job of jobs) {
         const backend = job.printStatus != null ? String(job.printStatus).toLowerCase() : 'queued';
         const idKey = job.id != null ? String(job.id) : '';
@@ -432,18 +469,44 @@ async function startBackendPolling(printReceiptFn, intervalMs = null) {
         const localStatus = local && local.status ? String(local.status).toLowerCase() : null;
         return shouldProcessJob(backend, localStatus);
       });
-      if (queuedJobs.length === 0) return;
-      if (isPrintingPaused()) return;
+      if (queuedJobs.length === 0) {
+        if (jobs.length > 0) {
+          logBackend('info', 'Backend print: no eligible jobs to process', {
+            totalJobs: jobs.length,
+          });
+        }
+        return;
+      }
+      if (isPrintingPaused()) {
+        logBackend('info', 'Backend print: printing paused, not processing jobs', {
+          pendingCount: queuedJobs.length,
+        });
+        return;
+      }
       processing = true;
       const job = queuedJobs[0];
       try {
+        logBackend('info', 'Backend print: processing job', {
+          jobId: job.id,
+          orderId: job.orderId,
+          backendStatus: job.printStatus,
+        });
         setOrderStatus(job.id, 'printing');
         await withTimeout(printReceiptFn(job.payload || null), PRINT_TIMEOUT_MS);
         await markJobComplete(job.queueId || job.id);
         setOrderStatus(job.id, 'printed');
+        logBackend('info', 'Backend print: job printed successfully', {
+          jobId: job.id,
+          orderId: job.orderId,
+        });
       } catch (err) {
         const msg = err && err.message ? err.message : String(err);
         console.error('[Backend print] Job failed:', job.id, msg);
+        logBackend('error', 'Backend print: job failed', {
+          jobId: job.id,
+          orderId: job.orderId,
+          error: msg,
+        });
         setOrderStatus(job.id, 'failed', msg);
         const isClientConfigError = /no printer selected|printer.*dropdown/i.test(msg);
         if (isClientConfigError) {
@@ -461,6 +524,9 @@ async function startBackendPolling(printReceiptFn, intervalMs = null) {
       lastPollSucceeded = false;
       consecutivePollFailures += 1;
       console.error('[Backend print] Poll error', err);
+      logBackend('error', 'Backend print: poll error', {
+        error: err && err.message ? err.message : String(err),
+      });
     } finally {
       processing = false;
     }

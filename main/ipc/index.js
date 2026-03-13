@@ -1,11 +1,7 @@
+const fs = require('fs');
 const { ipcMain, app } = require('electron');
 const { autoUpdater } = require('electron-updater');
-const {
-  loadPrinterPreference,
-  savePrinterPreference,
-  loadBackendConfig,
-  saveBackendConfig,
-} = require('../prefs');
+const { loadPrinterPreference, savePrinterPreference, loadBackendConfig, saveBackendConfig } = require('../prefs');
 const { printReceipt } = require('../printer');
 const { enqueue, getQueue } = require('../queue');
 const {
@@ -19,6 +15,7 @@ const {
   stopBackendPolling,
 } = require('../services/backendPrintService');
 const { getAllStatuses, setOrderStatus } = require('../orderStatusStore');
+const { getLogFilePath } = require('../config');
 const { isPrintingPaused, setPrintingPaused } = require('../printingPaused');
 const logger = require('../logger');
 
@@ -116,6 +113,14 @@ function registerIpcHandlers() {
     setOrderStatus(orderId, 'skipped');
     await markJobSkipped(orderId, 'skipped_by_user');
     logger.info('IPC skip-order-in-queue', { orderId });
+  });
+
+  ipcMain.handle('get-local-logs', () => {
+    try {
+      return fs.readFileSync(getLogFilePath(), 'utf8');
+    } catch {
+      return '';
+    }
   });
 }
 
