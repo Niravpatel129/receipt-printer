@@ -33,6 +33,7 @@ const DEFAULT_RECEIPT = {
     { num: '03', name: 'PEPSI CAN', amount: '1.99' },
   ],
   itemCount: '3',
+  tax: '$ 3.48',
   total: '$ 26.47',
   cardLastFour: '9711',
   authCode: '867324',
@@ -75,6 +76,9 @@ function buildReceipt(printer, data = null) {
   drawDashed(printer);
   printer.leftRight('ITEM COUNT', d.itemCount);
   printer.bold(true);
+  if (d.tax) {
+    printer.leftRight('TAX', d.tax);
+  }
   printer.leftRight('TOTAL', d.total);
   printer.bold(false);
   drawDashed(printer);
