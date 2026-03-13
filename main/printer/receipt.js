@@ -33,6 +33,7 @@ const DEFAULT_RECEIPT = {
     { num: '03', name: 'PEPSI CAN', amount: '1.99' },
   ],
   itemCount: '3',
+  subtotal: '$ 22.99',
   tax: '$ 3.48',
   total: '$ 26.47',
   cardLastFour: '9711',
@@ -76,6 +77,9 @@ function buildReceipt(printer, data = null) {
   drawDashed(printer);
   printer.leftRight('ITEM COUNT', d.itemCount);
   printer.bold(true);
+  if (d.subtotal) {
+    printer.leftRight('SUBTOTAL', d.subtotal);
+  }
   if (d.tax) {
     printer.leftRight('TAX', d.tax);
   }
