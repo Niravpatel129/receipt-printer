@@ -447,6 +447,34 @@ tr.queue-detail-row td {
   background: var(--pico-background-color);
   color: var(--pico-color);
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+}
+
+.queue-refresh-btn:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.queue-refresh-inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.queue-refresh-icon {
+  font-size: 0.9rem;
+}
+
+.queue-refresh-spinner {
+  width: 1rem;
+  height: 1rem;
+  border-radius: 999px;
+  border: 2px solid var(--pico-muted-border-color);
+  border-top-color: var(--pico-primary-background);
+  animation: spin 0.8s linear infinite;
 }
 
 .queue-toolbar {

@@ -99,8 +99,18 @@ export default function App() {
     } catch (e) {
       setBackendStatus(`${config.apiBaseUrl} — error: ${e.message}`);
       setOrders([]);
+      throw e;
     }
   }, [api]);
+
+  const handleQueueRefreshClick = useCallback(async () => {
+    try {
+      await refreshBackendStatus();
+      addToast('Queue refreshed', 'success');
+    } catch (e) {
+      addToast('Failed to refresh queue: ' + e.message, 'error');
+    }
+  }, [refreshBackendStatus, addToast]);
 
   useEffect(() => {
     setWindowTitle(false, 'Loading…');
@@ -127,7 +137,11 @@ export default function App() {
         await api.setPrinterPreference(first);
       }
       await refreshQueue();
-      await refreshBackendStatus();
+      try {
+        await refreshBackendStatus();
+      } catch (e) {
+        // backend status already updated in refreshBackendStatus
+      }
       await refreshConnectionStatus();
       if (mounted) setInitialLoad(false);
     })();
@@ -176,7 +190,11 @@ export default function App() {
     });
     addToast('Backend settings saved');
     await refreshConnectionStatus();
-    await refreshBackendStatus();
+    try {
+      await refreshBackendStatus();
+    } catch (e) {
+      addToast('Failed to refresh backend status: ' + e.message, 'error');
+    }
   }, [api, backendConfig, refreshConnectionStatus, refreshBackendStatus, addToast]);
 
   const handleBackendConfigChange = useCallback((updates) => {
@@ -228,7 +246,7 @@ export default function App() {
           <QueueView
             orders={orders}
             onShowOrderJson={setOrderJsonModal}
-            onRefresh={refreshBackendStatus}
+            onRefresh={handleQueueRefreshClick}
             confirmDialog={confirmDialog}
             addToast={addToast}
             api={api}

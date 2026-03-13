@@ -289,6 +289,7 @@ export default function QueueTable({
   api,
 }) {
   const [search, setSearch] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
   const [openOrderId, setOpenOrderId] = useState(null);
   const filtered = useMemo(() => filterOrders(orders || [], search), [orders, search]);
 
@@ -306,10 +307,31 @@ export default function QueueTable({
           </span>
           <button
             type='button'
-            className='queue-refresh-btn'
-            onClick={() => onRefresh()}
+            className={`queue-refresh-btn${refreshing ? ' is-refreshing' : ''}`}
+            disabled={refreshing}
+            onClick={async () => {
+              if (refreshing) return;
+              setRefreshing(true);
+              try {
+                await onRefresh();
+              } finally {
+                setRefreshing(false);
+              }
+            }}
           >
-            Refresh
+            {refreshing ? (
+              <span className='queue-refresh-inner'>
+                <span className='queue-refresh-spinner' aria-hidden />
+                <span className='queue-refresh-label'>Refreshing…</span>
+              </span>
+            ) : (
+              <span className='queue-refresh-inner'>
+                <span className='queue-refresh-icon' aria-hidden>
+                  ⟳
+                </span>
+                <span className='queue-refresh-label'>Refresh</span>
+              </span>
+            )}
           </button>
         </div>
       </div>
