@@ -110,7 +110,6 @@ async function fetchPendingJobs() {
   if (!kitchenSecret) return [];
   const url = `${baseURL}/api/kitchen/print-queue?secret=${encodeURIComponent(kitchenSecret)}`;
   const { data } = await axios.get(url, { headers, timeout: REQUEST_TIMEOUT_MS });
-  console.log('🚀 ~ data:', data);
   const orders = data.orders || data.jobs || (Array.isArray(data) ? data : []);
   const toIdString = (v) => {
     if (v == null) return '';
@@ -345,6 +344,21 @@ async function addOrderToPrintQueue(orderId) {
   return data;
 }
 
+async function postLogs(logs) {
+  const { baseURL, headers } = getAxiosConfig();
+  if (!baseURL) return;
+  const payload = Array.isArray(logs) ? logs : [logs];
+  try {
+    await axios.post(
+      `${baseURL}/api/kitchen/client-logs${secretQuery()}`,
+      { logs: payload },
+      { headers, timeout: REQUEST_TIMEOUT_MS },
+    );
+  } catch (e) {
+    console.error('[Backend print] Failed to post logs', e);
+  }
+}
+
 async function flushPendingStatusUpdates() {
   const snapshot = pendingStatusUpdates.splice(0, pendingStatusUpdates.length);
   const remaining = [];
@@ -372,15 +386,9 @@ async function flushPendingStatusUpdates() {
 async function startBackendPolling(printReceiptFn, intervalMs = null) {
   if (pollTimer) return;
   const { apiBaseUrl } = loadBackendConfig();
-  if (!apiBaseUrl || !apiBaseUrl.trim()) {
-    console.log('[Backend print] No API base URL configured; skipping backend polling');
-    return;
-  }
+  if (!apiBaseUrl || !apiBaseUrl.trim()) return;
   const ok = await checkHealth();
-  if (!ok) {
-    console.log('[Backend print] Health check failed; not starting polling');
-    return;
-  }
+  if (!ok) return;
   lastPollSucceeded = true;
   consecutivePollFailures = 0;
   const { backendPollIntervalMs } = loadBackendConfig();
@@ -480,6 +488,7 @@ module.exports = {
   markJobCancel,
   markJobSkipped,
   addOrderToPrintQueue,
+  postLogs,
   startBackendPolling,
   stopBackendPolling,
   isPollingActive,

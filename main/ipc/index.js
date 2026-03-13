@@ -6,6 +6,7 @@ const { enqueue, getQueue } = require('../queue');
 const { fetchPendingJobs, fetchHistoryJobs, getConnectionState, isPollingActive, markJobCancel, markJobSkipped, startBackendPolling, stopBackendPolling } = require('../services/backendPrintService');
 const { getAllStatuses, setOrderStatus } = require('../orderStatusStore');
 const { isPrintingPaused, setPrintingPaused } = require('../printingPaused');
+const logger = require('../logger');
 
 function registerIpcHandlers() {
   ipcMain.handle('get-app-version', () => app.getVersion());
@@ -20,15 +21,24 @@ function registerIpcHandlers() {
 
   ipcMain.handle('get-printers', async (event) => {
     const printers = await event.sender.getPrintersAsync();
+    logger.info('IPC get-printers', { count: printers.length });
     return printers;
   });
 
   ipcMain.handle('get-printer-preference', () => loadPrinterPreference());
   ipcMain.handle('set-printer-preference', (_, printerName) => {
     savePrinterPreference(printerName);
+    logger.info('Printer preference set', { printerName });
   });
-  ipcMain.handle('print-receipt', (_, payload) => printReceipt(payload));
-  ipcMain.handle('enqueue-print-job', (_, payload) => enqueue(payload));
+  ipcMain.handle('print-receipt', async (_, payload) => {
+    logger.info('IPC print-receipt');
+    return printReceipt(payload);
+  });
+  ipcMain.handle('enqueue-print-job', (_, payload) => {
+    const id = enqueue(payload);
+    logger.info('IPC enqueue-print-job', { jobId: id });
+    return id;
+  });
   ipcMain.handle('get-print-queue', () => getQueue());
   ipcMain.handle('get-printing-paused', () => isPrintingPaused());
   ipcMain.handle('set-printing-paused', (_, paused) => setPrintingPaused(paused));
@@ -38,6 +48,7 @@ function registerIpcHandlers() {
     saveBackendConfig(config);
     stopBackendPolling();
     await startBackendPolling((payload) => printReceipt(payload));
+    logger.info('Backend config updated');
   });
   ipcMain.handle('get-backend-polling-active', () => isPollingActive());
   ipcMain.handle('get-backend-connection-state', () => getConnectionState());
@@ -75,10 +86,12 @@ function registerIpcHandlers() {
   ipcMain.handle('cancel-order-in-queue', async (_, orderId) => {
     setOrderStatus(orderId, 'cancelled');
     await markJobCancel(orderId);
+    logger.info('IPC cancel-order-in-queue', { orderId });
   });
   ipcMain.handle('skip-order-in-queue', async (_, orderId) => {
     setOrderStatus(orderId, 'skipped');
     await markJobSkipped(orderId, 'skipped_by_user');
+    logger.info('IPC skip-order-in-queue', { orderId });
   });
 }
 

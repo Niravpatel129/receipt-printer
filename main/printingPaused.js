@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { app } = require('electron');
+const logger = require('./logger');
 
 function getPath() {
   return path.join(app.getPath('userData'), 'printing-paused.json');
@@ -20,7 +21,7 @@ function save(paused) {
   try {
     fs.writeFileSync(getPath(), JSON.stringify({ paused: Boolean(paused) }, null, 0), 'utf8');
   } catch (err) {
-    console.error('Failed to save printing paused state', err);
+    logger.error('Failed to save printing paused state', { error: err && err.message ? err.message : String(err) });
   }
 }
 

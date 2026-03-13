@@ -6,6 +6,7 @@ const { registerIpcHandlers } = require('./ipc');
 const { startPolling } = require('./queue');
 const { printReceipt } = require('./printer');
 const { startBackendPolling, stopBackendPolling } = require('./services/backendPrintService');
+const logger = require('./logger');
 
 try {
   require('electron-reloader')(module, { ignore: /node_modules/ });
@@ -67,6 +68,7 @@ function setupAutoUpdater(win) {
 }
 
 app.whenReady().then(async () => {
+  logger.info('App starting');
   mainWindow = createWindow();
   mainWindow.on('close', (event) => {
     if (!isQuitting) {
@@ -78,11 +80,13 @@ app.whenReady().then(async () => {
   startPolling((payload) => printReceipt(payload), 2000);
   await startBackendPolling((payload) => printReceipt(payload));
   if (app.isPackaged) setupAutoUpdater(mainWindow);
+  logger.info('App ready');
 });
 
 app.on('before-quit', () => {
   isQuitting = true;
   stopBackendPolling();
+  logger.info('App before-quit');
 });
 
 app.on('window-all-closed', () => {
