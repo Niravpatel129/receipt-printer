@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 
 const STATUS_LABELS = {
-  printed: 'Printed',
+  printed: 'Sent',
+  completed: 'Done elsewhere',
   failed: 'Failed',
   pending: 'Pending',
   printing: 'Printing…',
@@ -175,9 +176,9 @@ function OrderRow({
   const status = order.printStatus || 'pending';
   const statusLabel = STATUS_LABELS[status] || 'Pending';
   const statusClass = 'status-' + (status || 'pending');
-  const canPrint = status !== 'printed' && status !== 'printing';
+  const canPrint = status !== 'printed' && status !== 'completed' && status !== 'printing';
   const canRetry = status === 'failed';
-  const canCancel = status !== 'printed' && status !== 'cancelled';
+  const canCancel = status !== 'printed' && status !== 'completed' && status !== 'cancelled';
 
   const handlePrint = async () => {
     if (!order.payload) return;
@@ -240,7 +241,7 @@ function OrderRow({
         <td>
           <span
             className={`status-pill ${statusClass}`}
-            title={status === 'failed' && order.printError ? order.printError : statusLabel}
+            title={status === 'failed' && order.printError ? order.printError : status === 'printed' ? 'Sent to printer' : status === 'completed' ? 'Printed on another device' : statusLabel}
           >
             {statusLabel}
           </span>

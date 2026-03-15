@@ -75,7 +75,7 @@
     .status-printing { color: var(--status-printing); font-weight: 600; }
     .status-printed { color: var(--status-printed); font-weight: 600; }
     .status-failed { color: var(--status-failed); font-weight: 600; }
-    .status-cancelled, .status-skipped { color: var(--status-muted); }
+    .status-cancelled, .status-skipped, .status-completed { color: var(--status-muted); }
     tr.queue-row { cursor: pointer; }
     tr.queue-row:hover { background: var(--pico-muted-background); }
     tr.queue-detail-row td { background: var(--pico-muted-background); vertical-align: top; }
@@ -342,7 +342,7 @@
         return;
       }
       emptyEl.style.display = 'none';
-      const statusLabels = { printed: 'Printed', failed: 'Failed', pending: 'Pending', printing: 'Printing…', cancelled: 'Cancelled', skipped: 'Skipped' };
+      const statusLabels = { printed: 'Sent', completed: 'Done elsewhere', failed: 'Failed', pending: 'Pending', printing: 'Printing…', cancelled: 'Cancelled', skipped: 'Skipped' };
       orders.forEach((o) => {
         const dateStr = o.date ? new Date(o.date).toLocaleString() : '';
         const totalStr = typeof o.total === 'number' ? `$${o.total.toFixed(2)}` : (o.total || '');
@@ -351,12 +351,12 @@
         const itemCount = o.itemCount != null ? o.itemCount : (Array.isArray(o.items) ? o.items.length : 0);
         const status = o.printStatus || 'pending';
         const statusLabel = statusLabels[status] || 'Pending';
-        const statusTitle = status === 'failed' && o.printError ? escapeHtml(o.printError) : statusLabel;
+        const statusTitle = status === 'failed' && o.printError ? escapeHtml(o.printError) : status === 'printed' ? 'Sent to printer' : status === 'completed' ? 'Printed on another device' : statusLabel;
         const statusClass = 'status-' + (status || 'pending');
-        const canPrint = status !== 'printed' && status !== 'printing';
+        const canPrint = status !== 'printed' && status !== 'completed' && status !== 'printing';
         const canRetry = status === 'failed';
         const canSkip = status === 'pending' || status === 'failed';
-        const canCancel = status !== 'printed' && status !== 'cancelled';
+        const canCancel = status !== 'printed' && status !== 'completed' && status !== 'cancelled';
         const actionsHtml = [
           canPrint ? `<button type="button" class="queue-print-btn" data-order-id="${escapeHtml(o.id)}">${canRetry ? 'Retry' : 'Print now'}</button>` : '',
           canSkip ? `<button type="button" class="queue-action-btn skip-btn" data-order-id="${escapeHtml(o.id)}">Skip</button>` : '',

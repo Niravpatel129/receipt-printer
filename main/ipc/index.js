@@ -19,13 +19,14 @@ const { getLogFilePath } = require('../config');
 const { isPrintingPaused, setPrintingPaused } = require('../printingPaused');
 const logger = require('../logger');
 
-const TERMINAL_STATUSES = ['printed', 'cancelled', 'failed', 'skipped'];
+const TERMINAL_STATUSES = ['printed', 'completed', 'cancelled', 'failed', 'skipped'];
 
 function computeUiPrintStatus(backendStatus, localStatus) {
   const b = backendStatus ? String(backendStatus).toLowerCase() : null;
   const l = localStatus ? String(localStatus).toLowerCase() : null;
   if (TERMINAL_STATUSES.includes(l)) return l;
   if (l === 'printing' || l === 'pending') return l;
+  if (b === 'printed' || b === 'complete') return l === 'printed' ? 'printed' : 'completed';
   if (TERMINAL_STATUSES.includes(b)) return b;
   return 'pending';
 }
