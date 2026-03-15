@@ -318,6 +318,22 @@ async function fetchOrders(limit = 50, since = null, status = null) {
   }
 }
 
+async function fetchClientInfo() {
+  const { baseURL, headers } = getAxiosConfig();
+  if (!baseURL) return null;
+  if (!hasBackendAuth()) return null;
+  try {
+    const { data } = await axios.get(`${baseURL}/api/kitchen/client${authQuery()}`, {
+      headers,
+      timeout: REQUEST_TIMEOUT_MS,
+    });
+    return data && typeof data === 'object' ? data : null;
+  } catch (e) {
+    if (e.response?.status !== 404) logBackend('warn', 'Backend print: fetch client failed', { message: e.message });
+    return null;
+  }
+}
+
 async function checkHealth() {
   const { baseURL, headers } = getAxiosConfig();
   if (!baseURL) {
@@ -641,6 +657,7 @@ module.exports = {
   fetchPendingJobs,
   fetchHistoryJobs,
   fetchOrders,
+  fetchClientInfo,
   markJobComplete,
   markJobFailed,
   markJobCancel,

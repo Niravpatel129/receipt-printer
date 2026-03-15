@@ -8,6 +8,7 @@ const {
   fetchPendingJobs,
   fetchHistoryJobs,
   fetchOrders,
+  fetchClientInfo,
   getConnectionState,
   isPollingActive,
   markJobCancel,
@@ -108,6 +109,13 @@ function registerIpcHandlers() {
       return await fetchOrders(limit, since || undefined, status || undefined);
     } catch (e) {
       throw { status: e.response?.status, message: e.response?.data?.message || e.message || 'Request failed' };
+    }
+  });
+  ipcMain.handle('get-backend-client', async () => {
+    try {
+      return await fetchClientInfo();
+    } catch (e) {
+      return null;
     }
   });
   ipcMain.handle('set-order-print-status', (_, orderId, status, error) => {

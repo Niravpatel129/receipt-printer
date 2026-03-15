@@ -691,6 +691,50 @@ tr.queue-detail-row td {
   color: var(--status-failed);
 }
 
+.update-client {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--pico-muted-border-color);
+}
+
+.update-client-heading {
+  margin: 0 0 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--pico-muted-color);
+}
+
+.update-client-message {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--pico-muted-color);
+}
+
+.update-client-error {
+  color: var(--status-failed);
+}
+
+.update-client-dl {
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.update-client-row {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.update-client-row dt {
+  margin: 0;
+  min-width: 5rem;
+  color: var(--pico-muted-color);
+}
+
+.update-client-row dd {
+  margin: 0;
+}
+
 @keyframes toast-in {
   from {
     opacity: 0;
