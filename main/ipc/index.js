@@ -7,6 +7,7 @@ const { enqueue, getQueue } = require('../queue');
 const {
   fetchPendingJobs,
   fetchHistoryJobs,
+  fetchOrders,
   getConnectionState,
   isPollingActive,
   markJobCancel,
@@ -98,6 +99,13 @@ function registerIpcHandlers() {
     try {
       const jobs = await fetchHistoryJobs(limit, page);
       return jobs;
+    } catch (e) {
+      throw { status: e.response?.status, message: e.response?.data?.message || e.message || 'Request failed' };
+    }
+  });
+  ipcMain.handle('fetch-backend-orders', async (_, { limit = 50, since = null, status = null } = {}) => {
+    try {
+      return await fetchOrders(limit, since || undefined, status || undefined);
     } catch (e) {
       throw { status: e.response?.status, message: e.response?.data?.message || e.message || 'Request failed' };
     }
