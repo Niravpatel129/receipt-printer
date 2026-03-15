@@ -174,7 +174,8 @@ function OrderRow({
   const payment = (order.paymentMethod || '').replace(/^\w/, (c) => c.toUpperCase());
   const itemCount =
     order.itemCount != null ? order.itemCount : Array.isArray(order.items) ? order.items.length : 0;
-  const status = order.printStatus || 'pending';
+  const status =
+    printing && order.printStatus === 'failed' ? 'pending' : order.printStatus || 'pending';
   const statusLabel = STATUS_LABELS[status] || 'Pending';
   const statusClass = 'status-' + (status || 'pending');
   const canPrint = status !== 'printing';
