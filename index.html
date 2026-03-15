@@ -343,12 +343,13 @@
         const statusLabel = statusLabels[status] || 'Pending';
         const statusTitle = status === 'failed' && o.printError ? escapeHtml(o.printError) : status === 'printed' ? 'Sent to printer' : status === 'completed' ? 'Printed on another device' : statusLabel;
         const statusClass = 'status-' + (status || 'pending');
-        const canPrint = status !== 'printed' && status !== 'completed' && status !== 'printing';
+        const canPrint = status !== 'printing';
         const canRetry = status === 'failed';
+        const canReprint = status === 'printed' || status === 'completed';
         const canSkip = status === 'pending' || status === 'failed';
         const canCancel = status !== 'printed' && status !== 'completed' && status !== 'cancelled';
         const actionsHtml = [
-          canPrint ? `<button type="button" class="queue-print-btn" data-order-id="${escapeHtml(o.id)}">${canRetry ? 'Retry' : 'Print now'}</button>` : '',
+          canPrint ? `<button type="button" class="queue-print-btn" data-order-id="${escapeHtml(o.id)}">${canRetry ? 'Retry' : canReprint ? 'Print again' : 'Print now'}</button>` : '',
           canSkip ? `<button type="button" class="queue-action-btn skip-btn" data-order-id="${escapeHtml(o.id)}">Skip</button>` : '',
           canCancel ? `<button type="button" class="queue-action-btn cancel-btn" data-order-id="${escapeHtml(o.id)}">Cancel</button>` : ''
         ].filter(Boolean).join('');
