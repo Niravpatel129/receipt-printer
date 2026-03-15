@@ -62,9 +62,15 @@ function logBackend(level, message, meta) {
 function shouldProcessJob(backendStatus, localStatus) {
   const b = backendStatus ? String(backendStatus).toLowerCase() : null;
   const l = localStatus ? String(localStatus).toLowerCase() : null;
+
+  // If the local store says "pending", that means the user explicitly
+  // wants this job to be (re)processed, even if the backend previously
+  // marked it as failed/skipped/etc.
+  if (l === 'pending') return true;
+
+  if (l === 'printing') return false;
   if (TERMINAL_STATUSES.includes(l)) return false;
   if (TERMINAL_STATUSES.includes(b)) return false;
-  if (l === 'printing') return false;
   return true;
 }
 
