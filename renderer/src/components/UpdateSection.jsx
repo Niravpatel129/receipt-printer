@@ -122,14 +122,17 @@ export default function UpdateSection() {
         {clientLoading && <p className="update-client-message">Loading…</p>}
         {!clientLoading && clientError && <p className="update-client-message update-client-error">{clientError}</p>}
         {!clientLoading && !clientError && clientLines && (
-          <dl className="update-client-dl">
-            {clientLines.map(({ label, value }) => (
-              <div key={label} className="update-client-row">
-                <dt>{label}</dt>
-                <dd>{value}</dd>
-              </div>
-            ))}
-          </dl>
+          <>
+            <dl className="update-client-dl">
+              {clientLines.map(({ label, value }) => (
+                <div key={label} className="update-client-row">
+                  <dt>{label}</dt>
+                  <dd>{value}</dd>
+                </div>
+              ))}
+            </dl>
+            <p className="update-client-message update-client-note">The name above is what admins see when choosing devices for &quot;Print to selected devices&quot;.</p>
+          </>
         )}
         {!clientLoading && !clientError && !clientLines && client !== undefined && (
           <p className="update-client-message">No client details.</p>
