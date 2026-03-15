@@ -177,8 +177,9 @@ function OrderRow({
   const status = order.printStatus || 'pending';
   const statusLabel = STATUS_LABELS[status] || 'Pending';
   const statusClass = 'status-' + (status || 'pending');
-  const canPrint = status !== 'printed' && status !== 'completed' && status !== 'printing';
+  const canPrint = status !== 'printing';
   const canRetry = status === 'failed';
+  const canReprint = status === 'printed' || status === 'completed';
   const canCancel = status !== 'printed' && status !== 'completed' && status !== 'cancelled' && status !== 'canceled';
 
   const handlePrint = async () => {
@@ -259,7 +260,7 @@ function OrderRow({
                   handlePrint();
                 }}
               >
-                {canRetry ? 'Retry' : 'Print now'}
+                {canRetry ? 'Retry' : canReprint ? 'Print again' : 'Print now'}
               </button>
             )}
             {canCancel && (
