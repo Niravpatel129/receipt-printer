@@ -32,6 +32,7 @@
     .form-group { display: flex; flex-direction: column; gap: 0.25rem; }
     .form-group.inline { flex-direction: row; align-items: center; }
     #api-base-url { width: 100%; max-width: 320px; }
+    #device-id, #device-secret { width: 100%; max-width: 220px; }
     #kitchen-secret { width: 100%; max-width: 220px; }
     #backend-poll-ms { width: 6ch; }
     #backend-status { margin-top: 0.5rem; font-size: 0.9rem; color: var(--pico-muted-color); }
@@ -159,7 +160,15 @@
           <input type="url" id="api-base-url" placeholder="https://api.example.com">
         </div>
         <div class="form-group">
-          <label for="kitchen-secret">Kitchen secret</label>
+          <label for="device-id">Device ID</label>
+          <input type="text" id="device-id" placeholder="Device ID">
+        </div>
+        <div class="form-group">
+          <label for="device-secret">Device secret</label>
+          <input type="password" id="device-secret" placeholder="Device secret">
+        </div>
+        <div class="form-group">
+          <label for="kitchen-secret">Kitchen secret (fallback)</label>
           <input type="password" id="kitchen-secret" placeholder="Kitchen secret">
         </div>
         <div class="form-group">
@@ -226,6 +235,8 @@
     const select = document.getElementById('printer-select');
     const queueStatus = document.getElementById('queue-status');
     const apiBaseUrl = document.getElementById('api-base-url');
+    const deviceId = document.getElementById('device-id');
+    const deviceSecret = document.getElementById('device-secret');
     const kitchenSecret = document.getElementById('kitchen-secret');
     const backendPollMs = document.getElementById('backend-poll-ms');
     const backendStatus = document.getElementById('backend-status');
@@ -296,8 +307,9 @@
         showConnectionStatus(false, 'API base URL not set');
         return;
       }
-      if (!config.kitchenSecret) {
-        showConnectionStatus(false, 'Kitchen secret not set');
+      const hasAuth = (config.deviceId && config.deviceSecret) || config.kitchenSecret;
+      if (!hasAuth) {
+        showConnectionStatus(false, 'Device credentials or kitchen secret not set');
         return;
       }
       showConnectionStatus(false, 'Polling inactive');
@@ -313,6 +325,12 @@
       const config = await window.printerApi.getBackendConfig();
       if (!config.apiBaseUrl) {
         backendStatus.textContent = 'Backend not configured. Set API base URL and Save to poll for print jobs.';
+        renderQueueTable([]);
+        return;
+      }
+      const hasAuth = (config.deviceId && config.deviceSecret) || config.kitchenSecret;
+      if (!hasAuth) {
+        backendStatus.textContent = 'Set device ID + device secret, or kitchen secret, then Save to poll for print jobs.';
         renderQueueTable([]);
         return;
       }
@@ -507,6 +525,8 @@
       }
       const cfg = await window.printerApi.getBackendConfig();
       apiBaseUrl.value = cfg.apiBaseUrl || '';
+      deviceId.value = cfg.deviceId || '';
+      deviceSecret.value = cfg.deviceSecret || '';
       kitchenSecret.value = cfg.kitchenSecret || '';
       backendPollMs.value = cfg.backendPollIntervalMs || 5000;
       await refreshQueue();
@@ -540,6 +560,8 @@
     document.getElementById('backend-save-btn').addEventListener('click', async () => {
       await window.printerApi.setBackendConfig({
         apiBaseUrl: apiBaseUrl.value ? apiBaseUrl.value.trim() : undefined,
+        deviceId: deviceId.value ? deviceId.value.trim() : undefined,
+        deviceSecret: deviceSecret.value || undefined,
         kitchenSecret: kitchenSecret.value || undefined,
         backendPollIntervalMs: parseInt(backendPollMs.value, 10) || 5000
       });
