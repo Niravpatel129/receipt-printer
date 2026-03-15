@@ -31,16 +31,24 @@ function loadBackendConfig() {
   return {
     apiBaseUrl: DEFAULT_API_BASE_URL,
     kitchenSecret: p.kitchenSecret || '',
+    deviceId: p.deviceId || '',
+    deviceSecret: p.deviceSecret || '',
     backendPollIntervalMs: p.backendPollIntervalMs || 5000
   };
 }
 
-function saveBackendConfig({ kitchenSecret, backendPollIntervalMs }) {
+function saveBackendConfig({ kitchenSecret, deviceId, deviceSecret, backendPollIntervalMs }) {
   const filePath = getPrefFilePath();
   try {
     const prefs = loadPrefs();
     if (kitchenSecret !== undefined && kitchenSecret !== null) {
       prefs.kitchenSecret = typeof kitchenSecret === 'string' ? kitchenSecret.trim() : String(kitchenSecret);
+    }
+    if (deviceId !== undefined && deviceId !== null) {
+      prefs.deviceId = typeof deviceId === 'string' ? deviceId.trim() : String(deviceId);
+    }
+    if (deviceSecret !== undefined && deviceSecret !== null) {
+      prefs.deviceSecret = typeof deviceSecret === 'string' ? deviceSecret.trim() : String(deviceSecret);
     }
     if (backendPollIntervalMs !== undefined) prefs.backendPollIntervalMs = Number(backendPollIntervalMs) || 5000;
     fs.writeFileSync(filePath, JSON.stringify(prefs), 'utf8');

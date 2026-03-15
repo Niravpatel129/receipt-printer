@@ -68,10 +68,28 @@ function shouldProcessJob(backendStatus, localStatus) {
   return true;
 }
 
+function getDeviceCredentials() {
+  const config = loadBackendConfig();
+  const deviceId = config.deviceId && typeof config.deviceId === 'string' ? config.deviceId.trim() : '';
+  const deviceSecret = config.deviceSecret && typeof config.deviceSecret === 'string' ? config.deviceSecret.trim() : '';
+  if (!deviceId || !deviceSecret) return null;
+  return { deviceId, deviceSecret };
+}
+
+function hasDeviceAuth() {
+  return getDeviceCredentials() !== null;
+}
+
 function getAxiosConfig() {
-  const { apiBaseUrl } = loadBackendConfig();
+  const config = loadBackendConfig();
+  const apiBaseUrl = config.apiBaseUrl;
   const baseURL = apiBaseUrl && typeof apiBaseUrl === 'string' ? apiBaseUrl.replace(/\/$/, '') : '';
   const headers = { 'Content-Type': 'application/json' };
+  const creds = getDeviceCredentials();
+  if (creds) {
+    headers['X-Device-Id'] = creds.deviceId;
+    headers['Authorization'] = `Bearer ${creds.deviceSecret}`;
+  }
   return { baseURL, headers };
 }
 
@@ -83,6 +101,16 @@ function getKitchenSecret() {
   if (s.includes('apiBaseUrl') || s.includes('{kitchenSecret}') || s.includes('List queue'))
     return '';
   return s;
+}
+
+function hasBackendAuth() {
+  return hasDeviceAuth() || !!getKitchenSecret();
+}
+
+function authQuery() {
+  if (hasDeviceAuth()) return '';
+  const s = getKitchenSecret();
+  return s ? `?secret=${encodeURIComponent(s)}` : '';
 }
 
 function orderToReceiptPayload(order) {
@@ -130,12 +158,11 @@ async function fetchPendingJobs() {
     logBackend('warn', 'Backend print: apiBaseUrl not set, skipping fetchPendingJobs');
     return [];
   }
-  const kitchenSecret = getKitchenSecret();
-  if (!kitchenSecret) {
-    logBackend('warn', 'Backend print: kitchenSecret not set, skipping fetchPendingJobs');
+  if (!hasBackendAuth()) {
+    logBackend('warn', 'Backend print: device credentials or kitchen secret not set, skipping fetchPendingJobs');
     return [];
   }
-  const url = `${baseURL}/api/kitchen/print-queue?secret=${encodeURIComponent(kitchenSecret)}`;
+  const url = `${baseURL}/api/kitchen/print-queue${authQuery()}`;
   const { data } = await axios.get(url, { headers, timeout: REQUEST_TIMEOUT_MS });
   const orders = data.orders || data.jobs || (Array.isArray(data) ? data : []);
   const toIdString = (v) => {
@@ -201,14 +228,12 @@ async function fetchHistoryJobs(limit = 20, page = 1) {
     logBackend('warn', 'Backend print: apiBaseUrl not set, skipping fetchHistoryJobs');
     return [];
   }
-  const kitchenSecret = getKitchenSecret();
-  if (!kitchenSecret) {
-    logBackend('warn', 'Backend print: kitchenSecret not set, skipping fetchHistoryJobs');
+  if (!hasBackendAuth()) {
+    logBackend('warn', 'Backend print: device credentials or kitchen secret not set, skipping fetchHistoryJobs');
     return [];
   }
-  const url = `${baseURL}/api/kitchen/print-queue/history?secret=${encodeURIComponent(
-    kitchenSecret,
-  )}&limit=${encodeURIComponent(limit)}&page=${encodeURIComponent(page)}`;
+  const aq = authQuery();
+  const url = `${baseURL}/api/kitchen/print-queue/history${aq}${aq ? '&' : '?'}limit=${encodeURIComponent(limit)}&page=${encodeURIComponent(page)}`;
   const { data } = await axios.get(url, { headers, timeout: REQUEST_TIMEOUT_MS });
   const orders = data.orders || data.jobs || (Array.isArray(data) ? data : []);
   const toIdString = (v) => {
@@ -286,17 +311,13 @@ async function checkHealth() {
   }
 }
 
-function secretQuery() {
-  const s = getKitchenSecret();
-  return s ? `?secret=${encodeURIComponent(s)}` : '';
-}
 
 async function markJobComplete(id) {
   const { baseURL, headers } = getAxiosConfig();
   if (!baseURL) return;
   try {
     await axios.post(
-      `${baseURL}/api/kitchen/print-jobs/${encodeURIComponent(id)}/complete${secretQuery()}`,
+      `${baseURL}/api/kitchen/print-jobs/${encodeURIComponent(id)}/complete${authQuery()}`,
       {},
       { headers, timeout: REQUEST_TIMEOUT_MS },
     );
@@ -317,7 +338,7 @@ async function markJobFailed(id, message) {
   if (!baseURL) return;
   try {
     await axios.post(
-      `${baseURL}/api/kitchen/print-jobs/${encodeURIComponent(id)}/failed${secretQuery()}`,
+      `${baseURL}/api/kitchen/print-jobs/${encodeURIComponent(id)}/failed${authQuery()}`,
       { message: message || 'Print failed' },
       { headers, timeout: REQUEST_TIMEOUT_MS },
     );
@@ -338,7 +359,7 @@ async function markJobSkipped(id, reason) {
   if (!baseURL) return;
   try {
     await axios.post(
-      `${baseURL}/api/kitchen/print-jobs/${encodeURIComponent(id)}/skipped${secretQuery()}`,
+      `${baseURL}/api/kitchen/print-jobs/${encodeURIComponent(id)}/skipped${authQuery()}`,
       { reason: reason || 'unknown' },
       { headers, timeout: REQUEST_TIMEOUT_MS },
     );
@@ -360,7 +381,7 @@ async function markJobCancel(id) {
   if (!baseURL) return;
   try {
     await axios.post(
-      `${baseURL}/api/kitchen/print-jobs/${encodeURIComponent(id)}/cancel${secretQuery()}`,
+      `${baseURL}/api/kitchen/print-jobs/${encodeURIComponent(id)}/cancel${authQuery()}`,
       null,
       { headers, timeout: REQUEST_TIMEOUT_MS },
     );
@@ -374,7 +395,7 @@ async function addOrderToPrintQueue(orderId) {
   const { baseURL, headers } = getAxiosConfig();
   if (!baseURL) throw new Error('API base URL not set');
   const { data } = await axios.post(
-    `${baseURL}/api/kitchen/orders/${encodeURIComponent(orderId)}/print${secretQuery()}`,
+    `${baseURL}/api/kitchen/orders/${encodeURIComponent(orderId)}/print${authQuery()}`,
     {},
     { headers, timeout: REQUEST_TIMEOUT_MS },
   );
@@ -387,12 +408,27 @@ async function postLogs(logs) {
   const payload = Array.isArray(logs) ? logs : [logs];
   try {
     await axios.post(
-      `${baseURL}/api/kitchen/client-logs${secretQuery()}`,
+      `${baseURL}/api/kitchen/client-logs${authQuery()}`,
       { logs: payload },
       { headers, timeout: REQUEST_TIMEOUT_MS },
     );
   } catch (e) {
     console.error('[Backend print] Failed to post logs', e);
+  }
+}
+
+async function sendHeartbeat() {
+  if (!hasDeviceAuth()) return;
+  const { baseURL, headers } = getAxiosConfig();
+  if (!baseURL) return;
+  try {
+    await axios.post(
+      `${baseURL}/api/kitchen/heartbeat`,
+      {},
+      { headers, timeout: REQUEST_TIMEOUT_MS },
+    );
+  } catch (e) {
+    if (!isNetworkError(e)) logBackend('warn', 'Backend print: heartbeat failed', { message: e.message });
   }
 }
 
@@ -427,6 +463,10 @@ async function startBackendPolling(printReceiptFn, intervalMs = null) {
     logBackend('warn', 'Backend print: polling not started, apiBaseUrl not configured');
     return;
   }
+  if (!hasBackendAuth()) {
+    logBackend('warn', 'Backend print: polling not started, device credentials or kitchen secret not set');
+    return;
+  }
   const ok = await checkHealth();
   if (!ok) {
     logBackend('warn', 'Backend print: polling not started, backend health check failed');
@@ -442,6 +482,7 @@ async function startBackendPolling(printReceiptFn, intervalMs = null) {
     if (processing) return;
     try {
       await flushPendingStatusUpdates();
+      await sendHeartbeat();
       const jobs = await fetchPendingJobs();
       const statuses = getAllStatuses();
       logBackend('info', 'Backend print: fetched jobs', {
