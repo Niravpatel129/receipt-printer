@@ -379,7 +379,8 @@ body {
 }
 
 .status-cancelled,
-.status-skipped {
+.status-skipped,
+.status-completed {
   color: var(--status-muted);
   background: rgba(108, 117, 125, 0.12);
 }
