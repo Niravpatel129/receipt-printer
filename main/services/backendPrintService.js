@@ -293,6 +293,31 @@ async function fetchHistoryJobs(limit = 20, page = 1) {
     });
 }
 
+async function fetchOrders(limit = 50, since = null, status = null) {
+  const { baseURL, headers } = getAxiosConfig();
+  if (!baseURL) {
+    logBackend('warn', 'Backend print: apiBaseUrl not set, skipping fetchOrders');
+    return [];
+  }
+  if (!hasBackendAuth()) {
+    logBackend('warn', 'Backend print: device credentials or kitchen secret not set, skipping fetchOrders');
+    return [];
+  }
+  const params = new URLSearchParams();
+  if (!hasDeviceAuth()) params.set('secret', getKitchenSecret());
+  params.set('limit', String(Math.min(100, Math.max(1, limit))));
+  if (since) params.set('since', since);
+  if (status) params.set('status', status);
+  const url = `${baseURL}/api/kitchen/orders?${params.toString()}`;
+  try {
+    const { data } = await axios.get(url, { headers, timeout: REQUEST_TIMEOUT_MS });
+    return data.orders || [];
+  } catch (e) {
+    logBackend('warn', 'Backend print: fetchOrders failed', { message: e.message });
+    return [];
+  }
+}
+
 async function checkHealth() {
   const { baseURL, headers } = getAxiosConfig();
   if (!baseURL) {
@@ -391,6 +416,21 @@ async function markJobCancel(id) {
   }
 }
 
+async function markOrderPrinted(orderId) {
+  const { baseURL, headers } = getAxiosConfig();
+  if (!baseURL || !orderId) return;
+  try {
+    await axios.patch(
+      `${baseURL}/api/kitchen/orders/${encodeURIComponent(orderId)}${authQuery()}`,
+      { printed: true },
+      { headers, timeout: REQUEST_TIMEOUT_MS },
+    );
+  } catch (e) {
+    if (e.response?.status !== 404)
+      logBackend('warn', 'Backend print: mark order printed failed', { orderId, message: e.message });
+  }
+}
+
 async function addOrderToPrintQueue(orderId) {
   const { baseURL, headers } = getAxiosConfig();
   if (!baseURL) throw new Error('API base URL not set');
@@ -418,12 +458,12 @@ async function postLogs(logs) {
 }
 
 async function sendHeartbeat() {
-  if (!hasDeviceAuth()) return;
+  if (!hasBackendAuth()) return;
   const { baseURL, headers } = getAxiosConfig();
   if (!baseURL) return;
   try {
     await axios.post(
-      `${baseURL}/api/kitchen/heartbeat`,
+      `${baseURL}/api/kitchen/heartbeat${authQuery()}`,
       {},
       { headers, timeout: REQUEST_TIMEOUT_MS },
     );
@@ -496,6 +536,7 @@ async function startBackendPolling(printReceiptFn, intervalMs = null) {
         if (backend === 'queued' && TERMINAL_STATUSES.includes(localStatus)) {
           try {
             await markJobComplete(job.queueId || job.id);
+            await markOrderPrinted(job.orderId || job.id);
           } catch (e) {
             console.error('[Backend print] Failed to sync completed status to backend', e);
           }
@@ -535,6 +576,7 @@ async function startBackendPolling(printReceiptFn, intervalMs = null) {
         setOrderStatus(job.id, 'printing');
         await withTimeout(printReceiptFn(job.payload || null), PRINT_TIMEOUT_MS);
         await markJobComplete(job.queueId || job.id);
+        await markOrderPrinted(job.orderId || job.id);
         setOrderStatus(job.id, 'printed');
         logBackend('info', 'Backend print: job printed successfully', {
           jobId: job.id,
@@ -598,10 +640,12 @@ function getConnectionState() {
 module.exports = {
   fetchPendingJobs,
   fetchHistoryJobs,
+  fetchOrders,
   markJobComplete,
   markJobFailed,
   markJobCancel,
   markJobSkipped,
+  markOrderPrinted,
   addOrderToPrintQueue,
   postLogs,
   startBackendPolling,

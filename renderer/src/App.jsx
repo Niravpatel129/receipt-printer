@@ -20,7 +20,7 @@ export default function App() {
   const [printers, setPrinters] = useState([]);
   const [selectedPrinter, setSelectedPrinter] = useState('');
   const [queuePendingCount, setQueuePendingCount] = useState(0);
-  const [backendConfig, setBackendConfig] = useState({ deviceId: '', deviceSecret: '', kitchenSecret: '', backendPollIntervalMs: 5000 });
+  const [backendConfig, setBackendConfig] = useState({ kitchenSecret: '', backendPollIntervalMs: 5000 });
   const [backendStatus, setBackendStatus] = useState('');
   const [orders, setOrders] = useState([]);
   const [view, setView] = useState('queue');
@@ -70,10 +70,9 @@ export default function App() {
     }
     wasDisconnectedRef.current = false;
     const config = await api.getBackendConfig();
-    const hasAuth = (config.deviceId && config.deviceSecret) || config.kitchenSecret;
-    if (!hasAuth) {
-      setConnection({ show: true, connected: false, message: 'Device credentials or kitchen secret not set' });
-      setWindowTitle(false, 'Device credentials or kitchen secret not set');
+    if (!config.kitchenSecret) {
+      setConnection({ show: true, connected: false, message: 'Kitchen secret not set' });
+      setWindowTitle(false, 'Kitchen secret not set');
       return;
     }
     setConnection({ show: true, connected: false, message: 'Polling inactive' });
@@ -88,9 +87,8 @@ export default function App() {
 
   const refreshBackendStatus = useCallback(async () => {
     const config = await api.getBackendConfig();
-    const hasAuth = (config.deviceId && config.deviceSecret) || config.kitchenSecret;
-    if (!hasAuth) {
-      setBackendStatus('Set device ID + device secret, or kitchen secret, then Save to poll for print jobs.');
+    if (!config.kitchenSecret) {
+      setBackendStatus('Set kitchen secret and Save to poll for print jobs.');
       setOrders([]);
       return;
     }
@@ -128,8 +126,6 @@ export default function App() {
       setPrinters(printersList);
       setPrintingPausedState(paused);
       setBackendConfig({
-        deviceId: cfg.deviceId || '',
-        deviceSecret: cfg.deviceSecret || '',
         kitchenSecret: cfg.kitchenSecret || '',
         backendPollIntervalMs: cfg.backendPollIntervalMs ?? 5000,
       });
@@ -189,8 +185,6 @@ export default function App() {
 
   const handleBackendSave = useCallback(async () => {
     await api.setBackendConfig({
-      deviceId: backendConfig.deviceId || undefined,
-      deviceSecret: backendConfig.deviceSecret || undefined,
       kitchenSecret: backendConfig.kitchenSecret || undefined,
       backendPollIntervalMs: parseInt(backendConfig.backendPollIntervalMs, 10) || 5000,
     });
@@ -266,8 +260,6 @@ export default function App() {
             onPrintNow={handlePrintNow}
             onAddToQueue={handleAddToQueue}
             queuePendingCount={queuePendingCount}
-            deviceId={backendConfig.deviceId}
-            deviceSecret={backendConfig.deviceSecret}
             kitchenSecret={backendConfig.kitchenSecret}
             backendPollMs={backendConfig.backendPollIntervalMs}
             onBackendConfigChange={handleBackendConfigChange}

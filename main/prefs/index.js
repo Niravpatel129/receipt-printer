@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const fs = require('fs');
 const { getPrefFilePath, DEFAULT_API_BASE_URL } = require('../config');
 
@@ -33,11 +34,28 @@ function loadBackendConfig() {
     kitchenSecret: p.kitchenSecret || '',
     deviceId: p.deviceId || '',
     deviceSecret: p.deviceSecret || '',
+    deviceFingerprint: p.deviceFingerprint || '',
     backendPollIntervalMs: p.backendPollIntervalMs || 5000
   };
 }
 
-function saveBackendConfig({ kitchenSecret, deviceId, deviceSecret, backendPollIntervalMs }) {
+function getOrCreateDeviceFingerprint() {
+  const filePath = getPrefFilePath();
+  const prefs = loadPrefs();
+  let fp = prefs.deviceFingerprint && typeof prefs.deviceFingerprint === 'string' ? prefs.deviceFingerprint.trim() : '';
+  if (!fp) {
+    fp = crypto.randomUUID();
+    prefs.deviceFingerprint = fp;
+    try {
+      fs.writeFileSync(filePath, JSON.stringify(prefs), 'utf8');
+    } catch (err) {
+      console.error('Failed to save device fingerprint', err);
+    }
+  }
+  return fp;
+}
+
+function saveBackendConfig({ kitchenSecret, deviceId, deviceSecret, deviceFingerprint, backendPollIntervalMs }) {
   const filePath = getPrefFilePath();
   try {
     const prefs = loadPrefs();
@@ -49,6 +67,9 @@ function saveBackendConfig({ kitchenSecret, deviceId, deviceSecret, backendPollI
     }
     if (deviceSecret !== undefined && deviceSecret !== null) {
       prefs.deviceSecret = typeof deviceSecret === 'string' ? deviceSecret.trim() : String(deviceSecret);
+    }
+    if (deviceFingerprint !== undefined && deviceFingerprint !== null) {
+      prefs.deviceFingerprint = typeof deviceFingerprint === 'string' ? deviceFingerprint.trim() : String(deviceFingerprint);
     }
     if (backendPollIntervalMs !== undefined) prefs.backendPollIntervalMs = Number(backendPollIntervalMs) || 5000;
     fs.writeFileSync(filePath, JSON.stringify(prefs), 'utf8');
@@ -62,5 +83,6 @@ module.exports = {
   loadPrinterPreference,
   savePrinterPreference,
   loadBackendConfig,
-  saveBackendConfig
+  saveBackendConfig,
+  getOrCreateDeviceFingerprint,
 };

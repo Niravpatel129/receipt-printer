@@ -9,8 +9,6 @@ export default function SettingsView({
   onPrintNow,
   onAddToQueue,
   queuePendingCount,
-  deviceId,
-  deviceSecret,
   kitchenSecret,
   backendPollMs,
   onBackendConfigChange,
@@ -30,8 +28,6 @@ export default function SettingsView({
           queuePendingCount={queuePendingCount}
         />
         <BackendSection
-          deviceId={deviceId}
-          deviceSecret={deviceSecret}
           kitchenSecret={kitchenSecret}
           backendPollMs={backendPollMs}
           onConfigChange={onBackendConfigChange}

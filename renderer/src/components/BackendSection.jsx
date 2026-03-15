@@ -1,6 +1,4 @@
 export default function BackendSection({
-  deviceId,
-  deviceSecret,
   kitchenSecret,
   backendPollMs,
   onConfigChange,
@@ -12,29 +10,7 @@ export default function BackendSection({
       <h2>Backend</h2>
       <div className="form-row">
         <div className="form-group">
-          <label htmlFor="device-id">Device ID</label>
-          <input
-            id="device-id"
-            type="text"
-            placeholder="Device ID"
-            value={deviceId}
-            onChange={(e) => onConfigChange({ deviceId: e.target.value })}
-          />
-        </div>
-        <div className="form-group">
-          <label htmlFor="device-secret">Device secret</label>
-          <input
-            id="device-secret"
-            type="password"
-            placeholder="Device secret"
-            value={deviceSecret}
-            onChange={(e) => onConfigChange({ deviceSecret: e.target.value })}
-          />
-        </div>
-      </div>
-      <div className="form-row">
-        <div className="form-group">
-          <label htmlFor="kitchen-secret">Kitchen secret (fallback)</label>
+          <label htmlFor="kitchen-secret">Kitchen secret</label>
           <input
             id="kitchen-secret"
             type="password"
