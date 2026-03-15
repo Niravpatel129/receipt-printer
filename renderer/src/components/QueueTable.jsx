@@ -388,6 +388,7 @@ export default function QueueTable({
         <div className='queue-empty'>
           <p className='queue-empty-title'>No orders in queue</p>
           <p className='queue-empty-hint'>Configure the backend and save to poll for orders.</p>
+          <p className='queue-empty-hint'>If your store uses &quot;Print to selected devices&quot;, make sure this device is selected in the admin.</p>
         </div>
       )}
       {orders && orders.length > 0 && filtered.length === 0 && (
