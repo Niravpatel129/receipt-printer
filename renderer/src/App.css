@@ -22,6 +22,12 @@ body {
   margin-bottom: 0;
 }
 
+input:not([type='checkbox']):not([type='radio']),
+select,
+textarea {
+  margin-bottom: 0;
+}
+
 .app-loading {
   min-height: 100vh;
   display: flex;
