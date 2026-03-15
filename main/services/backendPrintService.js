@@ -8,7 +8,7 @@ const DEFAULT_POLL_MS = 5000;
 const PRINT_TIMEOUT_MS = 60000;
 const REQUEST_TIMEOUT_MS = 15000;
 const MAX_PENDING_STATUS_UPDATES = 100;
-const TERMINAL_STATUSES = ['printed', 'cancelled', 'failed', 'skipped'];
+const TERMINAL_STATUSES = ['printed', 'cancelled', 'canceled', 'failed', 'skipped'];
 let pollTimer = null;
 let lastPollSucceeded = true;
 let consecutivePollFailures = 0;
@@ -187,10 +187,11 @@ async function fetchPendingJobs() {
           : order.queue_id != null
             ? toIdString(order.queue_id)
             : normId(order);
-      const printStatus =
+      let printStatus =
         typeof order.printStatus === 'string' && order.printStatus
           ? String(order.printStatus).toLowerCase()
           : 'queued';
+      if (printStatus === 'canceled') printStatus = 'cancelled';
       return {
         id: queueId,
         orderId,
@@ -258,10 +259,11 @@ async function fetchHistoryJobs(limit = 20, page = 1) {
           : order.queue_id != null
             ? toIdString(order.queue_id)
             : normId(order);
-      const printStatus =
+      let printStatus =
         typeof order.printStatus === 'string' && order.printStatus
           ? String(order.printStatus).toLowerCase()
           : 'queued';
+      if (printStatus === 'canceled') printStatus = 'cancelled';
       return {
         id: queueId,
         orderId,

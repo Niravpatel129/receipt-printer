@@ -7,6 +7,7 @@ const STATUS_LABELS = {
   pending: 'Pending',
   printing: 'Printing…',
   cancelled: 'Cancelled',
+  canceled: 'Cancelled',
   skipped: 'Skipped',
 };
 
@@ -178,7 +179,7 @@ function OrderRow({
   const statusClass = 'status-' + (status || 'pending');
   const canPrint = status !== 'printed' && status !== 'completed' && status !== 'printing';
   const canRetry = status === 'failed';
-  const canCancel = status !== 'printed' && status !== 'completed' && status !== 'cancelled';
+  const canCancel = status !== 'printed' && status !== 'completed' && status !== 'cancelled' && status !== 'canceled';
 
   const handlePrint = async () => {
     if (!order.payload) return;
