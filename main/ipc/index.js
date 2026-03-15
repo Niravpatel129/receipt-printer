@@ -9,6 +9,8 @@ const {
   fetchHistoryJobs,
   fetchOrders,
   fetchClientInfo,
+  markJobComplete,
+  markOrderPrinted,
   getConnectionState,
   isPollingActive,
   markJobCancel,
@@ -121,6 +123,13 @@ function registerIpcHandlers() {
   });
   ipcMain.handle('set-order-print-status', (_, orderId, status, error) => {
     setOrderStatus(orderId, status, error);
+  });
+  ipcMain.handle('mark-backend-job-complete', async (_, { jobId, orderId }) => {
+    if (!jobId) return;
+    await markJobComplete(jobId);
+    if (orderId) {
+      await markOrderPrinted(orderId);
+    }
   });
   ipcMain.handle('cancel-order-in-queue', async (_, orderId) => {
     setOrderStatus(orderId, 'cancelled');

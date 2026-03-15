@@ -189,10 +189,15 @@ function OrderRow({
     if (order.printStatus === 'failed') await api.setOrderPrintStatus(order.id, 'pending');
     try {
       await api.printReceipt(order.payload);
+      if (order.queueId || order.orderId) {
+        await api.markBackendJobComplete(order.id, order.orderId || null);
+      }
       await api.setOrderPrintStatus(order.id, 'printed');
       addToast('Sent to printer');
     } catch (err) {
       const msg = err.message || String(err);
+      // eslint-disable-next-line no-console
+      console.error('[QueueTable] Print failed', { orderId: order.id, error: msg });
       await api.setOrderPrintStatus(order.id, 'failed', msg);
       addToast('Print failed: ' + msg, 'error');
     } finally {
