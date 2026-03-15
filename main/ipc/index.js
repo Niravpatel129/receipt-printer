@@ -24,12 +24,13 @@ const logger = require('../logger');
 const TERMINAL_STATUSES = ['printed', 'completed', 'cancelled', 'failed', 'skipped'];
 
 function computeUiPrintStatus(backendStatus, localStatus) {
-  const b = backendStatus ? String(backendStatus).toLowerCase() : null;
+  let b = backendStatus ? String(backendStatus).toLowerCase() : null;
+  if (b === 'canceled') b = 'cancelled';
   const l = localStatus ? String(localStatus).toLowerCase() : null;
+  if (TERMINAL_STATUSES.includes(b)) return b;
   if (TERMINAL_STATUSES.includes(l)) return l;
   if (l === 'printing' || l === 'pending') return l;
   if (b === 'printed' || b === 'complete') return l === 'printed' ? 'printed' : 'completed';
-  if (TERMINAL_STATUSES.includes(b)) return b;
   return 'pending';
 }
 
