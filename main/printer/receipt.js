@@ -45,6 +45,7 @@ const DEFAULT_RECEIPT = {
 };
 
 function buildReceipt(printer, data = null) {
+  console.log('🚀 ~ data:', data);
   const d = data && typeof data === 'object' ? { ...DEFAULT_RECEIPT, ...data } : DEFAULT_RECEIPT;
 
   printer.alignCenter();

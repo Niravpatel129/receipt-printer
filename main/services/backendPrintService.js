@@ -198,6 +198,11 @@ async function fetchPendingJobs() {
   }
   const url = `${baseURL}/api/kitchen/print-queue${authQuery()}`;
   const { data } = await axios.get(url, { headers, timeout: REQUEST_TIMEOUT_MS });
+  try {
+    console.log('[Backend print] Poll response:', JSON.stringify(data, null, 2));
+  } catch {
+    console.log('[Backend print] Poll response (non-serializable):', data);
+  }
   const orders = data.orders || data.jobs || (Array.isArray(data) ? data : []);
   const toIdString = (v) => {
     if (v == null) return '';
