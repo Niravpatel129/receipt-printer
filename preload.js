@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld('printerApi', {
   fetchBackendHistoryJobs: (limit, page) => ipcRenderer.invoke('fetch-backend-history-jobs', { limit, page }),
   fetchBackendOrders: (opts) => ipcRenderer.invoke('fetch-backend-orders', opts || {}),
   getBackendClient: () => ipcRenderer.invoke('get-backend-client'),
+  getBackendClientState: () => ipcRenderer.invoke('get-backend-client-state'),
   getBackendPollingActive: () => ipcRenderer.invoke('get-backend-polling-active'),
   getBackendConnectionState: () => ipcRenderer.invoke('get-backend-connection-state'),
   setOrderPrintStatus: (orderId, status, error) => ipcRenderer.invoke('set-order-print-status', orderId, status, error),
