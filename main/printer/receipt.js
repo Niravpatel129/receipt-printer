@@ -83,6 +83,9 @@ function buildReceipt(printer, data = null) {
   if (d.tax) {
     printer.leftRight('TAX', d.tax);
   }
+  if (d.tip) {
+    printer.leftRight('TIP', d.tip);
+  }
   printer.leftRight('TOTAL', d.total);
   printer.bold(false);
   drawDashed(printer);
