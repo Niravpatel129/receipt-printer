@@ -10,7 +10,8 @@
     "postinstall": "electron-builder install-app-deps",
     "dist": "npm run build && electron-builder --publish never",
     "dist:mac": "npm run build && electron-builder --mac --publish never",
-    "dist:win": "npm run build && electron-builder --win portable --publish never",
+    "dist:win": "npm run build && electron-builder --win portable --x64 --ia32 --publish never",
+    "dist:win:ia32": "npm run build && electron-builder --win portable --ia32 --publish never",
     "dist:win:ci": "npm run build && electron-builder --win portable --publish always"
   },
   "build": {
@@ -35,7 +36,8 @@
         {
           "target": "portable",
           "arch": [
-            "x64"
+            "x64",
+            "ia32"
           ]
         }
       ]
