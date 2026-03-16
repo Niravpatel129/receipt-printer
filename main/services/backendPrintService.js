@@ -119,9 +119,28 @@ function authQuery() {
   return s ? `?secret=${encodeURIComponent(s)}` : '';
 }
 
+function toCurrency(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '';
+  return `$ ${n.toFixed(2)}`;
+}
+
 function orderToReceiptPayload(order) {
+  const subtotal = toCurrency(order.subtotal);
+  const tax = toCurrency(order.tax);
+  const tip =
+    order.tip != null
+      ? toCurrency(order.tip)
+      : order.tipAmount != null
+        ? toCurrency(Number(order.tipAmount) / 100)
+        : '';
   if (order.receipt && typeof order.receipt === 'object') {
-    return order.receipt;
+    return {
+      ...order.receipt,
+      subtotal: order.receipt.subtotal || subtotal,
+      tax: order.receipt.tax || tax,
+      tip: order.receipt.tip || tip,
+    };
   }
   const items = (order.items || []).map((it, i) => ({
     num: String(i + 1).padStart(2, '0'),
@@ -130,7 +149,7 @@ function orderToReceiptPayload(order) {
       typeof it.price !== 'undefined' ? String(Number(it.price).toFixed(2)) : it.amount || '0.00',
     toppings: it.toppings || it.options,
   }));
-  const total = order.total != null ? `$ ${Number(order.total).toFixed(2)}` : '$ 0.00';
+  const total = toCurrency(order.total) || '$ 0.00';
   const dateStr = order.orderDate || order.date || order.createdAt || '';
   const date = dateStr
     ? new Date(dateStr)
@@ -148,6 +167,9 @@ function orderToReceiptPayload(order) {
     date: date,
     items,
     itemCount: String(order.itemCount != null ? order.itemCount : items.length),
+    subtotal,
+    tax,
+    tip,
     total,
     cardLastFour: cardLastFour ? String(cardLastFour).slice(-4) : '',
     authCode: payment.authCode || payment.authNumber || '',
