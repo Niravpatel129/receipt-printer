@@ -5,13 +5,19 @@ const { isPrintingPaused } = require('../printingPaused');
 const { appendLocalLog } = require('../localLog');
 
 const DEFAULT_POLL_MS = 5000;
+const DEFAULT_RECONNECT_MS = 10000;
 const PRINT_TIMEOUT_MS = 60000;
 const REQUEST_TIMEOUT_MS = 15000;
 const MAX_PENDING_STATUS_UPDATES = 100;
 const TERMINAL_STATUSES = ['printed', 'cancelled', 'canceled', 'failed', 'skipped'];
 let pollTimer = null;
+let reconnectTimer = null;
+let reconnectInFlight = false;
+let printReceiptHandler = null;
 let lastPollSucceeded = true;
 let consecutivePollFailures = 0;
+let lastInactiveReason = null;
+let lastKnownClientInfo = null;
 let isFlushingPendingUpdates = false;
 const pendingStatusUpdates = [];
 
@@ -357,10 +363,74 @@ async function fetchClientInfo() {
       headers,
       timeout: REQUEST_TIMEOUT_MS,
     });
-    return data && typeof data === 'object' ? data : null;
+    const client = data && typeof data === 'object' ? data : null;
+    if (client) lastKnownClientInfo = client;
+    return client;
   } catch (e) {
     if (e.response?.status !== 404) logBackend('warn', 'Backend print: fetch client failed', { message: e.message });
     return null;
+  }
+}
+
+async function fetchClientInfoState() {
+  const { baseURL, headers } = getAxiosConfig();
+  if (!baseURL) {
+    return {
+      client: lastKnownClientInfo,
+      stale: Boolean(lastKnownClientInfo),
+      error: 'Backend URL not configured',
+      reason: 'api_base_url_missing',
+      retryable: false,
+    };
+  }
+  if (!hasBackendAuth()) {
+    return {
+      client: lastKnownClientInfo,
+      stale: Boolean(lastKnownClientInfo),
+      error: 'Kitchen secret or device auth missing',
+      reason: 'auth_missing',
+      retryable: false,
+    };
+  }
+  try {
+    const { data } = await axios.get(`${baseURL}/api/kitchen/client${authQuery()}`, {
+      headers,
+      timeout: REQUEST_TIMEOUT_MS,
+    });
+    const client = data && typeof data === 'object' ? data : null;
+    if (client) {
+      lastKnownClientInfo = client;
+      return {
+        client,
+        stale: false,
+        error: null,
+        reason: null,
+        retryable: false,
+      };
+    }
+    return {
+      client: lastKnownClientInfo,
+      stale: Boolean(lastKnownClientInfo),
+      error: 'No client info from backend',
+      reason: 'empty_response',
+      retryable: true,
+    };
+  } catch (e) {
+    const status = e.response?.status || null;
+    const message =
+      e.response?.data?.message ||
+      (status === 404 ? 'Client endpoint not found' : e.message || 'Failed to load client');
+    if (status !== 404) {
+      logBackend('warn', 'Backend print: fetch client failed', { message: e.message, status });
+    }
+    return {
+      client: lastKnownClientInfo,
+      stale: Boolean(lastKnownClientInfo),
+      error: message,
+      reason: status === 404 ? 'not_found' : isNetworkError(e) ? 'network' : 'request_failed',
+      retryable: status !== 404,
+      status,
+    };
   }
 }
 
@@ -542,24 +612,66 @@ async function flushPendingStatusUpdates() {
   pendingStatusUpdates.push(...remaining);
 }
 
-async function startBackendPolling(printReceiptFn, intervalMs = null) {
-  if (pollTimer) return;
+function getStartBlockReason() {
   const { apiBaseUrl } = loadBackendConfig();
-  if (!apiBaseUrl || !apiBaseUrl.trim()) {
+  if (!apiBaseUrl || !apiBaseUrl.trim()) return 'api_base_url_missing';
+  if (!hasBackendAuth()) return 'auth_missing';
+  return null;
+}
+
+function clearReconnectTimer() {
+  if (!reconnectTimer) return;
+  clearInterval(reconnectTimer);
+  reconnectTimer = null;
+}
+
+function ensureReconnectTimer() {
+  if (reconnectTimer) return;
+  reconnectTimer = setInterval(async () => {
+    if (pollTimer || reconnectInFlight || !printReceiptHandler) return;
+    reconnectInFlight = true;
+    try {
+      await startBackendPolling();
+    } finally {
+      reconnectInFlight = false;
+    }
+  }, DEFAULT_RECONNECT_MS);
+}
+
+async function startBackendPolling(printReceiptFn, intervalMs = null) {
+  if (typeof printReceiptFn === 'function') {
+    printReceiptHandler = printReceiptFn;
+  }
+  if (!printReceiptHandler) {
+    lastInactiveReason = 'no_print_handler';
+    return;
+  }
+  if (pollTimer) return;
+  const blockedReason = getStartBlockReason();
+  if (blockedReason === 'api_base_url_missing') {
+    lastInactiveReason = blockedReason;
+    clearReconnectTimer();
     logBackend('warn', 'Backend print: polling not started, apiBaseUrl not configured');
     return;
   }
-  if (!hasBackendAuth()) {
+  if (blockedReason === 'auth_missing') {
+    lastInactiveReason = blockedReason;
+    clearReconnectTimer();
     logBackend('warn', 'Backend print: polling not started, device credentials or kitchen secret not set');
     return;
   }
   const ok = await checkHealth();
   if (!ok) {
+    lastInactiveReason = 'health_check_failed';
+    ensureReconnectTimer();
     logBackend('warn', 'Backend print: polling not started, backend health check failed');
     return;
   }
+  const { apiBaseUrl } = loadBackendConfig();
   lastPollSucceeded = true;
   consecutivePollFailures = 0;
+  lastInactiveReason = null;
+  clearReconnectTimer();
   const { backendPollIntervalMs } = loadBackendConfig();
   const ms = intervalMs ?? backendPollIntervalMs ?? DEFAULT_POLL_MS;
   let processing = false;
@@ -667,8 +779,10 @@ function stopBackendPolling() {
     clearInterval(pollTimer);
     pollTimer = null;
   }
+  clearReconnectTimer();
   lastPollSucceeded = true;
   consecutivePollFailures = 0;
+  lastInactiveReason = 'stopped';
 }
 
 function isPollingActive() {
@@ -678,8 +792,10 @@ function isPollingActive() {
 function getConnectionState() {
   return {
     pollingActive: pollTimer != null,
+    reconnectScheduled: reconnectTimer != null,
     lastPollSucceeded: lastPollSucceeded,
     consecutivePollFailures: consecutivePollFailures,
+    inactiveReason: lastInactiveReason,
   };
 }
 
@@ -688,6 +804,7 @@ module.exports = {
   fetchHistoryJobs,
   fetchOrders,
   fetchClientInfo,
+  fetchClientInfoState,
   markJobComplete,
   markJobFailed,
   markJobCancel,

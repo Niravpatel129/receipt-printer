@@ -8,13 +8,15 @@ const PRINT_TIMEOUT_MS = 60000;
 
 function createMockDriver() {
   return {
-    getPrinters: () => [{ name: 'Mock Printer', displayName: 'Mock Printer (development)', attributes: ['RAW'] }],
+    getPrinters: () => [
+      { name: 'Mock Printer', displayName: 'Mock Printer (development)', attributes: ['RAW'] },
+    ],
     getPrinter: (name) => ({ name, displayName: name, status: 'IDLE' }),
     printDirect: (opts) => {
       const size = opts.data ? opts.data.length : 0;
       logger.info('Mock printer print job', { size });
-      setTimeout(() => (opts.success && opts.success('mock-job')), 0);
-    }
+      setTimeout(() => opts.success && opts.success('mock-job'), 0);
+    },
   };
 }
 
@@ -69,19 +71,20 @@ try {
 
 const printerDriver = electronPrinter
   ? {
-      getPrinters: () => electronPrinter.getPrinters().map(p => ({ ...p, attributes: ['RAW'] })),
+      getPrinters: () => electronPrinter.getPrinters().map((p) => ({ ...p, attributes: ['RAW'] })),
       getPrinter: (name) => {
         const p = electronPrinter.getPrinter(name);
         if (!p) return null;
         return { ...p, status: p.status || 'IDLE' };
       },
       printDirect: wrapPrintDirect((opts) =>
-        electronPrinter.printDirect({ ...opts, docname: opts.docname || 'Receipt' })
-      )
+        electronPrinter.printDirect({ ...opts, docname: opts.docname || 'Receipt' }),
+      ),
     }
   : createMockDriver();
 
 async function printReceipt(payload = null) {
+  console.log('🚀 ~ payload:', payload);
   const printerName = loadPrinterPreference();
   if (!printerName) {
     const msg = 'No printer selected. Pick a printer from the dropdown first.';

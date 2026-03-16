@@ -30,6 +30,8 @@ export default function UpdateSection() {
   const [client, setClient] = useState(null);
   const [clientLoading, setClientLoading] = useState(false);
   const [clientError, setClientError] = useState(null);
+  const [clientStale, setClientStale] = useState(false);
+  const [clientRetrying, setClientRetrying] = useState(false);
 
   useEffect(() => {
     api.getAppVersion().then(setVersion);
@@ -42,34 +44,55 @@ export default function UpdateSection() {
 
   useEffect(() => {
     let mounted = true;
-    (async () => {
+    let retryDelay = 3000;
+    let timer = null;
+    let hasLoaded = false;
+    const scheduleNext = (ms) => {
+      if (!mounted) return;
+      timer = setTimeout(loadClient, ms);
+    };
+    const loadClient = async () => {
       const config = await api.getBackendConfig();
+      if (!mounted) return;
       if (!config.kitchenSecret) {
         setClient(null);
         setClientError('Set kitchen secret to see client.');
+        setClientStale(false);
+        setClientRetrying(false);
+        setClientLoading(false);
         return;
       }
-      setClientLoading(true);
-      setClientError(null);
+      if (!hasLoaded) setClientLoading(true);
       try {
-        const data = await api.getBackendClient();
+        const state = await api.getBackendClientState();
         if (!mounted) return;
-        if (data) {
-          setClient(data);
-          setClientError(null);
-        } else {
-          setClient(null);
-          setClientError('No client info from backend.');
-        }
+        const nextClient = state?.client || null;
+        const nextError = state?.error || null;
+        const retryable = Boolean(state?.retryable);
+        if (nextClient) setClient(nextClient);
+        setClientStale(Boolean(state?.stale));
+        setClientError(nextError);
+        setClientRetrying(retryable);
+        retryDelay = retryable ? Math.min(retryDelay * 2, 30000) : 15000;
+        scheduleNext(retryable ? retryDelay : 15000);
       } catch (e) {
         if (!mounted) return;
-        setClient(null);
         setClientError(e?.message || 'Failed to load client.');
+        setClientRetrying(true);
+        retryDelay = Math.min(retryDelay * 2, 30000);
+        scheduleNext(retryDelay);
       } finally {
-        if (mounted) setClientLoading(false);
+        if (mounted) {
+          setClientLoading(false);
+          hasLoaded = true;
+        }
       }
-    })();
-    return () => { mounted = false; };
+    };
+    loadClient();
+    return () => {
+      mounted = false;
+      if (timer) clearTimeout(timer);
+    };
   }, [api]);
 
   const handleCheck = useCallback(async () => {
@@ -120,8 +143,18 @@ export default function UpdateSection() {
       <div className="update-client">
         <h3 className="update-client-heading">Client</h3>
         {clientLoading && <p className="update-client-message">Loading…</p>}
-        {!clientLoading && clientError && <p className="update-client-message update-client-error">{clientError}</p>}
-        {!clientLoading && !clientError && clientLines && (
+        {!clientLoading && clientError && (
+          <p className="update-client-message update-client-error">
+            {clientError}
+            {clientRetrying ? ' Retrying automatically…' : ''}
+          </p>
+        )}
+        {!clientLoading && clientStale && clientLines && (
+          <p className="update-client-message update-client-note">
+            Showing last known client info while reconnecting.
+          </p>
+        )}
+        {!clientLoading && clientLines && (
           <>
             <dl className="update-client-dl">
               {clientLines.map(({ label, value }) => (

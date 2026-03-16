@@ -9,6 +9,7 @@ const {
   fetchHistoryJobs,
   fetchOrders,
   fetchClientInfo,
+  fetchClientInfoState,
   markJobComplete,
   markOrderPrinted,
   getConnectionState,
@@ -119,6 +120,19 @@ function registerIpcHandlers() {
       return await fetchClientInfo();
     } catch (e) {
       return null;
+    }
+  });
+  ipcMain.handle('get-backend-client-state', async () => {
+    try {
+      return await fetchClientInfoState();
+    } catch (e) {
+      return {
+        client: null,
+        stale: false,
+        error: e?.message || 'Failed to load client',
+        reason: 'request_failed',
+        retryable: true,
+      };
     }
   });
   ipcMain.handle('set-order-print-status', (_, orderId, status, error) => {

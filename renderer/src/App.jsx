@@ -14,6 +14,16 @@ function setWindowTitle(connected, message) {
   document.title = `${dot} ${TITLE_BASE} — ${message}`;
 }
 
+function inactiveConnectionMessage(state, config) {
+  if (!config.kitchenSecret) return 'Kitchen secret not set';
+  if (state.inactiveReason === 'health_check_failed') {
+    return state.reconnectScheduled ? 'Backend unreachable, retrying automatically…' : 'Backend unreachable';
+  }
+  if (state.inactiveReason === 'api_base_url_missing') return 'Backend URL not configured';
+  if (state.inactiveReason === 'auth_missing') return 'Kitchen secret or device auth missing';
+  return 'Polling inactive';
+}
+
 export default function App() {
   const [initialLoad, setInitialLoad] = useState(true);
   const [connection, setConnection] = useState({ show: false, connected: false, message: 'Loading…' });
@@ -70,13 +80,9 @@ export default function App() {
     }
     wasDisconnectedRef.current = false;
     const config = await api.getBackendConfig();
-    if (!config.kitchenSecret) {
-      setConnection({ show: true, connected: false, message: 'Kitchen secret not set' });
-      setWindowTitle(false, 'Kitchen secret not set');
-      return;
-    }
-    setConnection({ show: true, connected: false, message: 'Polling inactive' });
-    setWindowTitle(false, 'Polling inactive');
+    const message = inactiveConnectionMessage(state, config);
+    setConnection({ show: true, connected: false, message });
+    setWindowTitle(false, message);
   }, [api, addToast]);
 
   const refreshQueue = useCallback(async () => {
