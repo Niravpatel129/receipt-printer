@@ -12,7 +12,7 @@
     "dist:mac": "npm run build && electron-builder --mac --publish never",
     "dist:win": "npm run build && electron-builder --win portable --x64 --ia32 --publish never",
     "dist:win:ia32": "npm run build && electron-builder --win portable --ia32 --publish never",
-    "dist:win:ci": "npm run build && electron-builder --win portable --publish always"
+    "dist:win:ci": "npm run build && electron-builder --win portable --x64 --ia32 --publish always"
   },
   "build": {
     "appId": "com.receiptprinter.app",
@@ -32,6 +32,7 @@
       "category": "public.app-category.business"
     },
     "win": {
+      "artifactName": "${productName}-${version}-${arch}.${ext}",
       "target": [
         {
           "target": "portable",
