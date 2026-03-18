@@ -106,15 +106,19 @@ export default function UpdateSection() {
     }
   }, [api]);
 
-  const handleInstall = useCallback(() => {
-    api.installUpdate();
+  const handleInstall = useCallback(async () => {
+    try {
+      await api.installUpdate();
+    } catch (e) {
+      setStatus({ state: 'error', message: e?.message || 'Failed to install update' });
+    }
   }, [api]);
 
   function statusText() {
     if (!status) return null;
     if (status.state === 'available') return `Update available — v${status.version}`;
     if (status.state === 'downloading') return `Downloading… ${status.progress != null ? Math.round(status.progress) + '%' : ''}`;
-    if (status.state === 'downloaded') return `v${status.version} ready — will install on next quit`;
+    if (status.state === 'downloaded') return `v${status.version} ready — click Install & Restart`;
     if (status.state === 'error') return status.message || 'Could not check for updates.';
     return STATUS_LABELS[status.state] ?? null;
   }
