@@ -118,7 +118,18 @@ async function checkForUpdates(send) {
   }
   if (checkInFlight) {
     send({ state: 'checking' });
-    return checkInFlight;
+    try {
+      const result = await checkInFlight;
+      if (result?.updated) {
+        send({ state: 'downloaded', version: result.latestVersion });
+      } else {
+        send({ state: 'up-to-date' });
+      }
+      return result;
+    } catch (err) {
+      send({ state: 'error', message: err?.message || 'Update check failed' });
+      throw err;
+    }
   }
   send({ state: 'checking' });
   checkInFlight = (async () => {

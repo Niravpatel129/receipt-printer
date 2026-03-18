@@ -36,7 +36,7 @@ export default function UpdateSection() {
   useEffect(() => {
     api.getAppVersion().then(setVersion);
     api.onUpdateStatus((data) => {
-      setStatus(data);
+      setStatus({ ...data, at: Date.now() });
       if (data.state !== 'checking') setBusy(false);
     });
     return () => api.offUpdateStatus();
@@ -96,13 +96,20 @@ export default function UpdateSection() {
   }, [api]);
 
   const handleCheck = useCallback(async () => {
+    let watchdog = null;
     setBusy(true);
     setStatus({ state: 'checking' });
+    watchdog = setTimeout(() => {
+      setStatus((prev) => (prev?.state === 'checking' ? { state: 'error', message: 'Update check timed out. Please try again.' } : prev));
+      setBusy(false);
+    }, 45000);
     try {
       await api.checkForUpdates();
     } catch {
       setStatus({ state: 'error', message: 'Update check failed' });
       setBusy(false);
+    } finally {
+      if (watchdog) clearTimeout(watchdog);
     }
   }, [api]);
 
@@ -113,6 +120,16 @@ export default function UpdateSection() {
       setStatus({ state: 'error', message: e?.message || 'Failed to install update' });
     }
   }, [api]);
+
+  function statusLabel(state) {
+    if (state === 'checking') return 'Checking';
+    if (state === 'available') return 'Available';
+    if (state === 'downloading') return 'Downloading';
+    if (state === 'downloaded') return 'Ready';
+    if (state === 'up-to-date') return 'Up to date';
+    if (state === 'error') return 'Error';
+    return 'Idle';
+  }
 
   function statusText() {
     if (!status) return null;
@@ -125,6 +142,14 @@ export default function UpdateSection() {
 
   const isBlocked = busy || status?.state === 'downloading' || status?.state === 'downloaded';
   const clientLines = client ? formatClient(client) : null;
+  const statusTime = status?.at ? new Date(status.at).toLocaleTimeString() : null;
+  const progressPercent = status?.state === 'downloaded'
+    ? 100
+    : (status?.state === 'downloading' && Number.isFinite(status?.progress))
+      ? Math.max(0, Math.min(100, Math.round(status.progress)))
+      : null;
+  const showProgress = Boolean(status?.state === 'checking' || status?.state === 'available' || status?.state === 'downloading' || status?.state === 'downloaded');
+  const isProgressIndeterminate = status?.state === 'checking' || status?.state === 'available';
 
   return (
     <div className="section-card">
@@ -145,9 +170,8 @@ export default function UpdateSection() {
         {status?.state === 'downloaded' && (
           <button
             type="button"
-            className="queue-action-btn"
+            className="queue-action-btn update-install-btn"
             onClick={handleInstall}
-            style={{ marginLeft: 8 }}
           >
             Install &amp; Restart
           </button>
@@ -158,6 +182,25 @@ export default function UpdateSection() {
           </span>
         )}
       </div>
+      {status?.state && (
+        <div className="update-meta-row">
+          <span className={`status-pill update-flow-pill update-flow-${status.state}`}>{statusLabel(status.state)}</span>
+          {statusTime && <span className="update-meta-time">Last update check: {statusTime}</span>}
+        </div>
+      )}
+      {showProgress && (
+        <div className="update-progress-wrap" role="status" aria-live="polite">
+          <div className="update-progress-track">
+            <div
+              className={`update-progress-fill${isProgressIndeterminate ? ' indeterminate' : ''}`}
+              style={progressPercent != null ? { width: `${progressPercent}%` } : undefined}
+            />
+          </div>
+          <span className="update-progress-text">
+            {progressPercent != null ? `${progressPercent}%` : 'In progress…'}
+          </span>
+        </div>
+      )}
       <div className="update-client">
         <h3 className="update-client-heading">Client</h3>
         {clientLoading && <p className="update-client-message">Loading…</p>}
