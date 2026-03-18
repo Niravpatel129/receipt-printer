@@ -737,7 +737,7 @@ async function startBackendPolling(printReceiptFn, intervalMs = null) {
           backendStatus: job.printStatus,
         });
         setOrderStatus(job.id, 'printing');
-        await withTimeout(printReceiptFn(job.payload || null), PRINT_TIMEOUT_MS);
+        await withTimeout(printReceiptHandler(job.payload || null), PRINT_TIMEOUT_MS);
         await markJobComplete(job.queueId || job.id);
         await markOrderPrinted(job.orderId || job.id);
         setOrderStatus(job.id, 'printed');
