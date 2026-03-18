@@ -25,6 +25,7 @@ contextBridge.exposeInMainWorld('printerApi', {
   getLocalLogs: () => ipcRenderer.invoke('get-local-logs'),
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+  installUpdate: () => ipcRenderer.invoke('install-update'),
   onUpdateStatus: (cb) => ipcRenderer.on('update-status', (_, data) => cb(data)),
   offUpdateStatus: () => ipcRenderer.removeAllListeners('update-status'),
 });

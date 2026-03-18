@@ -106,6 +106,10 @@ export default function UpdateSection() {
     }
   }, [api]);
 
+  const handleInstall = useCallback(() => {
+    api.installUpdate();
+  }, [api]);
+
   function statusText() {
     if (!status) return null;
     if (status.state === 'available') return `Update available — v${status.version}`;
@@ -134,6 +138,16 @@ export default function UpdateSection() {
         >
           {busy ? 'Checking…' : 'Check for Updates'}
         </button>
+        {status?.state === 'downloaded' && (
+          <button
+            type="button"
+            className="queue-action-btn"
+            onClick={handleInstall}
+            style={{ marginLeft: 8 }}
+          >
+            Install &amp; Restart
+          </button>
+        )}
         {status && statusText() && (
           <span className={`update-status-text update-status-${status.state}`}>
             {statusText()}

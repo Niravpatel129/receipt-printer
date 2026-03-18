@@ -25,6 +25,18 @@ registerIpcHandlers();
 let mainWindow = null;
 let tray = null;
 let isQuitting = false;
+const hasSingleInstanceLock = app.requestSingleInstanceLock();
+
+if (!hasSingleInstanceLock) {
+  app.quit();
+}
+
+app.on('second-instance', () => {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+});
 
 function getTrayIcon() {
   const iconPath = path.join(__dirname, '..', 'assets', 'tray-icon.png');
@@ -52,19 +64,43 @@ function createTray(win) {
   tray.setContextMenu(contextMenu);
 }
 
+function configureAutoUpdaterFeed() {
+  autoUpdater.setFeedURL({
+    provider: 'github',
+    owner: 'Niravpatel129',
+    repo: 'receipt-printer',
+  });
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+}
+
 function setupAutoUpdater(win) {
   const send = (data) => {
     if (!win.isDestroyed()) win.webContents.send('update-status', data);
   };
-  autoUpdater.autoDownload = true;
-  autoUpdater.autoInstallOnAppQuit = true;
-  autoUpdater.on('error', (err) => send({ state: 'error', message: err?.message }));
+  try {
+    configureAutoUpdaterFeed();
+  } catch (err) {
+    logger.error('Failed to configure auto-updater feed', { error: err?.message });
+  }
+  autoUpdater.on('error', (err) => {
+    logger.error('Auto-updater error', { error: err?.message });
+    send({ state: 'error', message: err?.message });
+  });
   autoUpdater.on('checking-for-update', () => send({ state: 'checking' }));
-  autoUpdater.on('update-available', (info) => send({ state: 'available', version: info.version }));
+  autoUpdater.on('update-available', (info) => {
+    logger.info('Update available', { version: info.version });
+    send({ state: 'available', version: info.version });
+  });
   autoUpdater.on('update-not-available', () => send({ state: 'up-to-date' }));
   autoUpdater.on('download-progress', (p) => send({ state: 'downloading', progress: p.percent }));
-  autoUpdater.on('update-downloaded', (info) => send({ state: 'downloaded', version: info.version }));
-  autoUpdater.checkForUpdates().catch(() => {});
+  autoUpdater.on('update-downloaded', (info) => {
+    logger.info('Update downloaded', { version: info.version });
+    send({ state: 'downloaded', version: info.version });
+  });
+  autoUpdater.checkForUpdates().catch((err) => {
+    logger.error('Initial update check failed', { error: err?.message });
+  });
 }
 
 app.whenReady().then(async () => {

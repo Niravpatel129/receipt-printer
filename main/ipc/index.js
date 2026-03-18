@@ -45,7 +45,22 @@ function registerIpcHandlers() {
       event.sender.send('update-status', { state: 'error', message: 'Not available in development builds' });
       return;
     }
-    autoUpdater.checkForUpdates().catch(() => {});
+    try {
+      autoUpdater.setFeedURL({
+        provider: 'github',
+        owner: 'Niravpatel129',
+        repo: 'receipt-printer',
+      });
+    } catch (_) {}
+    autoUpdater.checkForUpdates().catch((err) => {
+      logger.error('Manual update check failed', { error: err?.message });
+      event.sender.send('update-status', { state: 'error', message: err?.message || 'Update check failed' });
+    });
+  });
+
+  ipcMain.handle('install-update', () => {
+    logger.info('User triggered install-update, quitting and installing');
+    autoUpdater.quitAndInstall(false, true);
   });
 
   ipcMain.handle('get-printers', async (event) => {
