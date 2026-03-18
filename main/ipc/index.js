@@ -4,6 +4,7 @@ const { autoUpdater } = require('electron-updater');
 const { loadPrinterPreference, savePrinterPreference, loadBackendConfig, saveBackendConfig } = require('../prefs');
 const { printReceipt } = require('../printer');
 const { enqueue, getQueue } = require('../queue');
+const { isPortableWindowsBuild, checkForUpdates: checkPortableUpdates, installDownloadedUpdate } = require('../services/portableUpdater');
 const {
   fetchPendingJobs,
   fetchHistoryJobs,
@@ -45,6 +46,15 @@ function registerIpcHandlers() {
       event.sender.send('update-status', { state: 'error', message: 'Not available in development builds' });
       return;
     }
+    if (isPortableWindowsBuild()) {
+      try {
+        await checkPortableUpdates((data) => event.sender.send('update-status', data));
+      } catch (err) {
+        logger.error('Portable manual update check failed', { error: err?.message });
+        event.sender.send('update-status', { state: 'error', message: err?.message || 'Update check failed' });
+      }
+      return;
+    }
     try {
       autoUpdater.setFeedURL({
         provider: 'github',
@@ -59,6 +69,10 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle('install-update', () => {
+    if (isPortableWindowsBuild()) {
+      installDownloadedUpdate();
+      return;
+    }
     logger.info('User triggered install-update, quitting and installing');
     autoUpdater.quitAndInstall(false, true);
   });

@@ -6,6 +6,7 @@ const { registerIpcHandlers } = require('./ipc');
 const { startPolling } = require('./queue');
 const { printReceipt } = require('./printer');
 const { startBackendPolling, stopBackendPolling } = require('./services/backendPrintService');
+const { isPortableWindowsBuild, checkForUpdates: checkPortableUpdates } = require('./services/portableUpdater');
 const logger = require('./logger');
 
 try {
@@ -78,6 +79,13 @@ function setupAutoUpdater(win) {
   const send = (data) => {
     if (!win.isDestroyed()) win.webContents.send('update-status', data);
   };
+  if (isPortableWindowsBuild()) {
+    checkPortableUpdates(send).catch((err) => {
+      logger.error('Portable startup update check failed', { error: err?.message });
+      send({ state: 'error', message: err?.message || 'Update check failed' });
+    });
+    return;
+  }
   try {
     configureAutoUpdaterFeed();
   } catch (err) {
