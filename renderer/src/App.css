@@ -672,6 +672,10 @@ tr.queue-detail-row td {
   flex-wrap: wrap;
 }
 
+.update-install-btn {
+  margin-left: 0;
+}
+
 .update-status-text {
   font-size: 0.8rem;
 }
@@ -695,6 +699,95 @@ tr.queue-detail-row td {
 }
 .update-status-error {
   color: var(--status-failed);
+}
+
+.update-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-top: 0.6rem;
+}
+
+.update-flow-pill {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.update-flow-checking {
+  color: var(--pico-muted-color);
+  background: var(--pico-muted-background);
+}
+
+.update-flow-available {
+  color: var(--status-pending);
+  background: rgba(184, 134, 11, 0.12);
+}
+
+.update-flow-downloading {
+  color: var(--status-printing);
+  background: rgba(12, 84, 96, 0.1);
+}
+
+.update-flow-downloaded {
+  color: var(--status-printed);
+  background: rgba(30, 126, 52, 0.12);
+}
+
+.update-flow-up-to-date {
+  color: var(--status-printed);
+  background: rgba(30, 126, 52, 0.12);
+}
+
+.update-flow-error {
+  color: var(--status-failed);
+  background: rgba(189, 33, 48, 0.12);
+}
+
+.update-meta-time {
+  font-size: 0.75rem;
+  color: var(--pico-muted-color);
+}
+
+.update-progress-wrap {
+  margin-top: 0.55rem;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.update-progress-track {
+  position: relative;
+  flex: 1;
+  min-width: 180px;
+  height: 8px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--pico-muted-background);
+  border: 1px solid var(--pico-muted-border-color);
+}
+
+.update-progress-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #1f9d60 0%, #3bb2d0 100%);
+  transition: width 180ms ease;
+}
+
+.update-progress-fill.indeterminate {
+  position: absolute;
+  width: 40%;
+  animation: update-indeterminate 1.1s ease-in-out infinite;
+}
+
+.update-progress-text {
+  min-width: 5.5rem;
+  text-align: right;
+  font-size: 0.78rem;
+  color: var(--pico-muted-color);
+  font-variant-numeric: tabular-nums;
 }
 
 .update-client {
@@ -753,5 +846,14 @@ tr.queue-detail-row td {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes update-indeterminate {
+  0% {
+    left: -45%;
+  }
+  100% {
+    left: 105%;
   }
 }
