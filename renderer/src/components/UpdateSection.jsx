@@ -135,7 +135,7 @@ export default function UpdateSection() {
     if (!status) return null;
     if (status.state === 'available') return `Update available — v${status.version}`;
     if (status.state === 'downloading') return `Downloading… ${status.progress != null ? Math.round(status.progress) + '%' : ''}`;
-    if (status.state === 'downloaded') return `v${status.version} ready — click Install & Restart`;
+    if (status.state === 'downloaded') return `v${status.version} ready — install now or restart to auto-apply`;
     if (status.state === 'error') return status.message || 'Could not check for updates.';
     return STATUS_LABELS[status.state] ?? null;
   }

@@ -73,6 +73,7 @@ function configureAutoUpdaterFeed() {
   });
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.autoRunAppAfterInstall = true;
 }
 
 function setupAutoUpdater(win) {

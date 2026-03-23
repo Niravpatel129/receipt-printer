@@ -69,12 +69,18 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle('install-update', () => {
-    if (isPortableWindowsBuild()) {
-      installDownloadedUpdate();
-      return;
+    try {
+      if (isPortableWindowsBuild()) {
+        installDownloadedUpdate();
+        return { ok: true };
+      }
+      logger.info('User triggered install-update, quitting and installing');
+      autoUpdater.quitAndInstall(true, true);
+      return { ok: true };
+    } catch (err) {
+      logger.error('install-update failed', { error: err?.message });
+      throw new Error(err?.message || 'Failed to install update');
     }
-    logger.info('User triggered install-update, quitting and installing');
-    autoUpdater.quitAndInstall(false, true);
   });
 
   ipcMain.handle('get-printers', async (event) => {
