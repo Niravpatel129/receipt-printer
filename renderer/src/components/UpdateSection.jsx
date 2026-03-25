@@ -35,8 +35,11 @@ export default function UpdateSection() {
 
   useEffect(() => {
     api.getAppVersion().then(setVersion);
+    api.getLastUpdateStatus().then((cached) => {
+      if (cached && typeof cached === 'object') setStatus(cached);
+    });
     api.onUpdateStatus((data) => {
-      setStatus({ ...data, at: Date.now() });
+      setStatus({ ...data, at: data.at ?? Date.now() });
       if (data.state !== 'checking') setBusy(false);
     });
     return () => api.offUpdateStatus();

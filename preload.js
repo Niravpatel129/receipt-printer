@@ -24,6 +24,7 @@ contextBridge.exposeInMainWorld('printerApi', {
   skipOrderInQueue: (orderId) => ipcRenderer.invoke('skip-order-in-queue', orderId),
   getLocalLogs: () => ipcRenderer.invoke('get-local-logs'),
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+  getLastUpdateStatus: () => ipcRenderer.invoke('get-last-update-status'),
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
   installUpdate: () => ipcRenderer.invoke('install-update'),
   onUpdateStatus: (cb) => ipcRenderer.on('update-status', (_, data) => cb(data)),
