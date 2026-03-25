@@ -16,4 +16,14 @@ function getLogFilePath() {
 // Default API base URL
 const DEFAULT_API_BASE_URL = 'https://pizza-depot-backend-91ae077a284d.herokuapp.com';
 
-module.exports = { getPrefFilePath, getOrderStatusFilePath, getLogFilePath, DEFAULT_API_BASE_URL };
+const GITHUB_UPDATER_OWNER = 'Niravpatel129';
+const GITHUB_UPDATER_REPO = 'receipt-printer';
+
+module.exports = {
+  getPrefFilePath,
+  getOrderStatusFilePath,
+  getLogFilePath,
+  DEFAULT_API_BASE_URL,
+  GITHUB_UPDATER_OWNER,
+  GITHUB_UPDATER_REPO,
+};

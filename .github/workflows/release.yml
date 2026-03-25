@@ -47,3 +47,22 @@ jobs:
         run: npm run dist:win:ci
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify latest.yml on release
+        shell: bash
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          url="https://github.com/${{ github.repository }}/releases/download/v${VERSION}/latest.yml"
+          for i in 1 2 3 4 5 6 7 8; do
+            if curl -fsSL "$url" -o /tmp/latest-updater.yml; then
+              grep -qE '^version:' /tmp/latest-updater.yml
+              echo "Updater metadata OK for v${VERSION}"
+              exit 0
+            fi
+            echo "Retry $i: release asset not ready yet..."
+            sleep 15
+          done
+          echo "latest.yml missing or invalid for v${VERSION}"
+          exit 1

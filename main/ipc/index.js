@@ -5,6 +5,8 @@ const { loadPrinterPreference, savePrinterPreference, loadBackendConfig, saveBac
 const { printReceipt } = require('../printer');
 const { enqueue, getQueue } = require('../queue');
 const { isPortableWindowsBuild, checkForUpdates: checkPortableUpdates, installDownloadedUpdate } = require('../services/portableUpdater');
+const { configureAutoUpdater } = require('../updater/feed');
+const { record: recordUpdateStatus, get: getLastUpdateStatus } = require('../updater/updateStatusStore');
 const {
   fetchPendingJobs,
   fetchHistoryJobs,
@@ -40,6 +42,7 @@ function computeUiPrintStatus(backendStatus, localStatus) {
 
 function registerIpcHandlers() {
   ipcMain.handle('get-app-version', () => app.getVersion());
+  ipcMain.handle('get-last-update-status', () => getLastUpdateStatus());
 
   ipcMain.handle('check-for-updates', async (event) => {
     if (!app.isPackaged) {
@@ -48,7 +51,10 @@ function registerIpcHandlers() {
     }
     if (isPortableWindowsBuild()) {
       try {
-        await checkPortableUpdates((data) => event.sender.send('update-status', data));
+        await checkPortableUpdates((data) => {
+          recordUpdateStatus(data);
+          event.sender.send('update-status', data);
+        });
       } catch (err) {
         logger.error('Portable manual update check failed', { error: err?.message });
         event.sender.send('update-status', { state: 'error', message: err?.message || 'Update check failed' });
@@ -56,11 +62,7 @@ function registerIpcHandlers() {
       return;
     }
     try {
-      autoUpdater.setFeedURL({
-        provider: 'github',
-        owner: 'Niravpatel129',
-        repo: 'receipt-printer',
-      });
+      configureAutoUpdater(autoUpdater);
     } catch (_) {}
     autoUpdater.checkForUpdates().catch((err) => {
       logger.error('Manual update check failed', { error: err?.message });

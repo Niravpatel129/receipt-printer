@@ -5,8 +5,7 @@ const axios = require('axios');
 const { app } = require('electron');
 const logger = require('../logger');
 
-const GITHUB_OWNER = 'Niravpatel129';
-const GITHUB_REPO = 'receipt-printer';
+const { GITHUB_UPDATER_OWNER, GITHUB_UPDATER_REPO } = require('../config');
 
 let downloadedVersion = null;
 let downloadedAssetPath = null;
@@ -50,16 +49,23 @@ function getApplyScriptPath() {
 
 function pickAsset(assets, arch) {
   const list = Array.isArray(assets) ? assets : [];
-  const exactArch = list.find((a) => {
-    const name = String(a?.name || '').toLowerCase();
-    return name.endsWith('.exe') && name.includes(`-${arch}.exe`);
+  const portableExes = list.filter((a) => {
+    const n = String(a?.name || '').toLowerCase();
+    return n.endsWith('.exe') && n.includes('portable');
   });
-  if (exactArch) return exactArch;
-  return list.find((a) => String(a?.name || '').toLowerCase().endsWith('.exe')) || null;
+  if (!portableExes.length) return null;
+  const nameMatchesArch = (n) => {
+    if (arch === 'x64') return n.includes('-x64') || n.includes('x64') || n.includes('win-x64');
+    if (arch === 'ia32') return n.includes('-ia32') || n.includes('ia32') || n.includes('x86') || n.includes('win-ia32');
+    return n.includes(String(arch).toLowerCase());
+  };
+  const byArch = portableExes.find((a) => nameMatchesArch(String(a?.name || '').toLowerCase()));
+  if (byArch) return byArch;
+  return portableExes.length === 1 ? portableExes[0] : null;
 }
 
 async function fetchLatestRelease() {
-  const response = await axios.get(`https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`, {
+  const response = await axios.get(`https://api.github.com/repos/${GITHUB_UPDATER_OWNER}/${GITHUB_UPDATER_REPO}/releases/latest`, {
     headers: {
       Accept: 'application/vnd.github+json',
       'User-Agent': 'receipt-printer-updater',
