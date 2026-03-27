@@ -10,7 +10,7 @@ const WEBSITE = 'PIZZADEPOT.CA';
 const FEEDBACK_URL = 'PIZZADEPOT.CA/FEEDBACK';
 const COMMENTARY = 'YOU HAD OPTIONS. YOU CHOSE CORRECTLY.';
 const FOOTER_SIGN = 'COME BACK HUNGRY.';
-const FOOTER_PRIDE = 'PROUDLY CANADIAN  \u{1F341}  50+ LOCATIONS';
+const FOOTER_PRIDE = 'PROUDLY CANADIAN  -  50+ LOCATIONS';
 const FOOTER_LEGAL = 'KEEP RECEIPT FOR ORDER DISPUTES.';
 
 const DEFAULT_RECEIPT = {
@@ -71,13 +71,13 @@ function wordWrap(str, width = 38) {
   const lines = [];
   let current = '';
   for (const word of words) {
-    if ((`${current} ${word}`).trim().length > width) {
+    if (`${current} ${word}`.trim().length > width) {
       if (current) {
         lines.push(current.trim());
       }
       current = word;
     } else {
-      current = (`${current} ${word}`).trim();
+      current = `${current} ${word}`.trim();
     }
   }
   if (current) {
@@ -98,6 +98,12 @@ function toMoneyString(value, fallback = '') {
   const n = Number(raw);
   if (!Number.isFinite(n)) return raw;
   return `$ ${n.toFixed(2)}`;
+}
+
+function amountValue(value) {
+  if (value == null || value === '') return Number.NaN;
+  const n = Number(String(value).replace(/[^0-9.-]/g, ''));
+  return Number.isFinite(n) ? n : Number.NaN;
 }
 
 function asStringArray(value) {
@@ -146,7 +152,10 @@ function buildReceipt(printer, data = null) {
     data && typeof data === 'object' && data.receipt && typeof data.receipt === 'object'
       ? { ...data, ...data.receipt }
       : data;
-  const merged = source && typeof source === 'object' ? { ...DEFAULT_RECEIPT, ...source } : { ...DEFAULT_RECEIPT };
+  const merged =
+    source && typeof source === 'object'
+      ? { ...DEFAULT_RECEIPT, ...source }
+      : { ...DEFAULT_RECEIPT };
   const normalizedItems = (merged.items || []).map(normalizeItem);
   const d = {
     ...merged,
@@ -160,7 +169,7 @@ function buildReceipt(printer, data = null) {
     barcode: merged.barcode || merged.orderNumber || DEFAULT_RECEIPT.barcode,
     subtotal: toMoneyString(merged.subtotal, DEFAULT_RECEIPT.subtotal),
     tax: toMoneyString(merged.tax, DEFAULT_RECEIPT.tax),
-    delivery: toMoneyString(merged.delivery ?? merged.deliveryFee, DEFAULT_RECEIPT.delivery),
+    delivery: toMoneyString(merged.delivery ?? merged.deliveryFee, ''),
     tip: toMoneyString(merged.tip, ''),
     total: toMoneyString(merged.total, DEFAULT_RECEIPT.total),
     website: merged.website || DEFAULT_RECEIPT.website,
@@ -257,10 +266,10 @@ function buildReceipt(printer, data = null) {
   if (d.tax) {
     printer.leftRight('TAX (HST)', d.tax);
   }
-  if (d.delivery) {
+  if (amountValue(d.delivery) > 0) {
     printer.leftRight('DELIVERY', d.delivery);
   }
-  if (d.tip) {
+  if (amountValue(d.tip) > 0) {
     printer.leftRight('TIP', d.tip);
   }
 
@@ -272,44 +281,50 @@ function buildReceipt(printer, data = null) {
   drawDashed(printer);
 
   printer.leftRight(`CARD #: **** **** **** ${d.cardLastFour}`, '');
-  printer.leftRight(`AUTH #: ${d.authCode}`, '');
+  if (d.authCode) {
+    printer.leftRight(`AUTH #: ${d.authCode}`, '');
+  }
   printer.leftRight(`USERID: ${d.userId}`, 'PAID ✓');
   printer.newLine();
   drawDashed(printer);
 
   printer.alignCenter();
   printer.println(d.commentaryLine || COMMENTARY);
-  drawDashed(printer);
-  printer.newLine();
-  drawDashed(printer);
-  printer.bold(true);
-  printer.println('PD REWARDS');
-  printer.bold(false);
-  drawDashed(printer);
-  printer.newLine();
-  if (d.rewardPoints != null && d.rewardPoints !== '') {
+  const hasRewardsData =
+    (d.rewardPoints != null && d.rewardPoints !== '') || d.rewardProgress || d.rewardNudge || d.rewardCode;
+  if (hasRewardsData) {
+    drawDashed(printer);
+    printer.newLine();
+    drawDashed(printer);
     printer.bold(true);
-    printer.setTextDoubleHeight();
-    printer.println(d.rewardPoints);
-    printer.setTextNormal();
+    printer.println('PD REWARDS');
     printer.bold(false);
-    printer.println('POINTS EARNED THIS ORDER');
+    drawDashed(printer);
+    printer.newLine();
+    if (d.rewardPoints != null && d.rewardPoints !== '') {
+      printer.bold(true);
+      printer.setTextDoubleHeight();
+      printer.println(d.rewardPoints);
+      printer.setTextNormal();
+      printer.bold(false);
+      printer.println('POINTS EARNED THIS ORDER');
+      printer.newLine();
+    }
+    if (d.rewardProgress) {
+      printer.println(d.rewardProgress);
+    }
+    if (d.rewardNudge) {
+      printer.println(d.rewardNudge);
+    }
+    if (d.rewardCode) {
+      printer.newLine();
+      printer.bold(true);
+      printer.println(`[ ${d.rewardCode} ]`);
+      printer.bold(false);
+    }
+    drawDashed(printer);
     printer.newLine();
   }
-  if (d.rewardProgress) {
-    printer.println(d.rewardProgress);
-  }
-  if (d.rewardNudge) {
-    printer.println(d.rewardNudge);
-  }
-  if (d.rewardCode) {
-    printer.newLine();
-    printer.bold(true);
-    printer.println(`[ ${d.rewardCode} ]`);
-    printer.bold(false);
-  }
-  drawDashed(printer);
-  printer.newLine();
 
   printer.code128(d.barcode, { height: 50, text: 0 });
   printer.newLine();
