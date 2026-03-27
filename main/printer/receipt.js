@@ -90,20 +90,58 @@ function padLabel(label, width = 7) {
   return String(label || '').padEnd(width, ' ');
 }
 
+function toMoneyString(value, fallback = '') {
+  if (value == null || value === '') return fallback;
+  const raw = String(value).trim();
+  if (!raw) return fallback;
+  if (raw.includes('$')) return raw;
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return raw;
+  return `$ ${n.toFixed(2)}`;
+}
+
+function asStringArray(value) {
+  if (Array.isArray(value)) return value.map((v) => String(v).trim()).filter(Boolean);
+  if (value == null) return [];
+  const s = String(value).trim();
+  return s ? [s] : [];
+}
+
+function normalizeModifierGroups(modifiers) {
+  if (!modifiers || typeof modifiers !== 'object' || Array.isArray(modifiers)) return null;
+  const out = {};
+  for (const [key, value] of Object.entries(modifiers)) {
+    const values = asStringArray(value);
+    if (values.length) out[key] = values;
+  }
+  return Object.keys(out).length ? out : null;
+}
+
 function normalizeItem(item, index) {
-  const qty = item.qty || item.num || String(index + 1).padStart(2, '0');
-  const name = item.name || 'ITEM';
-  const amount = item.amount ?? '0.00';
+  const qty = item.qty || item.num || item.quantity || String(index + 1).padStart(2, '0');
+  const name = String(item.name || 'ITEM').toUpperCase();
+  const amount = item.amount ?? item.price ?? '0.00';
+  const groupedModifiers = normalizeModifierGroups(item.modifiers);
+  const toppings = groupedModifiers
+    ? asStringArray(item.toppings)
+    : asStringArray(item.toppings || item.optionsDisplay || item.options || item.modifiers);
   return {
     ...item,
     qty: String(qty),
-    name: String(name),
+    num: String(qty),
+    name,
     amount: String(amount),
+    modifiers: groupedModifiers || undefined,
+    toppings: toppings.length ? toppings : undefined,
   };
 }
 
 function buildReceipt(printer, data = null) {
-  const merged = data && typeof data === 'object' ? { ...DEFAULT_RECEIPT, ...data } : { ...DEFAULT_RECEIPT };
+  const source =
+    data && typeof data === 'object' && data.receipt && typeof data.receipt === 'object'
+      ? { ...data, ...data.receipt }
+      : data;
+  const merged = source && typeof source === 'object' ? { ...DEFAULT_RECEIPT, ...source } : { ...DEFAULT_RECEIPT };
   const normalizedItems = (merged.items || []).map(normalizeItem);
   const d = {
     ...merged,
@@ -115,6 +153,13 @@ function buildReceipt(printer, data = null) {
     customerPhone: merged.customerPhone || '000-000-0000',
     itemCount: merged.itemCount || String(normalizedItems.length),
     barcode: merged.barcode || merged.orderNumber || DEFAULT_RECEIPT.barcode,
+    subtotal: toMoneyString(merged.subtotal, DEFAULT_RECEIPT.subtotal),
+    tax: toMoneyString(merged.tax, DEFAULT_RECEIPT.tax),
+    delivery: toMoneyString(merged.delivery ?? merged.deliveryFee, DEFAULT_RECEIPT.delivery),
+    tip: toMoneyString(merged.tip, ''),
+    total: toMoneyString(merged.total, DEFAULT_RECEIPT.total),
+    website: merged.website || DEFAULT_RECEIPT.website,
+    footerSign: merged.footerSign || merged.footerMessage || DEFAULT_RECEIPT.footerSign,
     items: normalizedItems,
   };
 
@@ -172,7 +217,7 @@ function buildReceipt(printer, data = null) {
           continue;
         }
         const label = `   ${padLabel(key)}`;
-        const lines = wordWrap(val, 30);
+        const lines = wordWrap(Array.isArray(val) ? val.join(' / ') : val, 30);
         printer.println(`${label}${lines[0]}`);
         const indent = ' '.repeat(label.length);
         for (let i = 1; i < lines.length; i += 1) {
@@ -230,23 +275,27 @@ function buildReceipt(printer, data = null) {
   printer.bold(false);
   drawDashed(printer);
   printer.newLine();
-  printer.bold(true);
-  printer.setTextDoubleHeight();
-  printer.println(d.rewardPoints);
-  printer.setTextNormal();
-  printer.bold(false);
-  printer.println('POINTS EARNED THIS ORDER');
-  printer.newLine();
+  if (d.rewardPoints != null && d.rewardPoints !== '') {
+    printer.bold(true);
+    printer.setTextDoubleHeight();
+    printer.println(d.rewardPoints);
+    printer.setTextNormal();
+    printer.bold(false);
+    printer.println('POINTS EARNED THIS ORDER');
+    printer.newLine();
+  }
   if (d.rewardProgress) {
     printer.println(d.rewardProgress);
   }
   if (d.rewardNudge) {
     printer.println(d.rewardNudge);
   }
-  printer.newLine();
-  printer.bold(true);
-  printer.println(`[ ${d.rewardCode} ]`);
-  printer.bold(false);
+  if (d.rewardCode) {
+    printer.newLine();
+    printer.bold(true);
+    printer.println(`[ ${d.rewardCode} ]`);
+    printer.bold(false);
+  }
   drawDashed(printer);
   printer.newLine();
 
