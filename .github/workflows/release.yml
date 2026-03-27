@@ -52,12 +52,25 @@ jobs:
         shell: bash
         env:
           VERSION: ${{ steps.version.outputs.version }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          url="https://github.com/${{ github.repository }}/releases/download/v${VERSION}/latest.yml"
           for i in 1 2 3 4 5 6 7 8; do
-            if curl -fsSL "$url" -o /tmp/latest-updater.yml; then
-              grep -qE '^version:' /tmp/latest-updater.yml
+            if node -e "
+              const repo = process.env.GITHUB_REPOSITORY;
+              const version = process.env.VERSION;
+              const token = process.env.GH_TOKEN;
+              const headers = { 'Accept': 'application/vnd.github+json', 'Authorization': 'Bearer ' + token, 'X-GitHub-Api-Version': '2022-11-28' };
+              (async () => {
+                const res = await fetch('https://api.github.com/repos/' + repo + '/releases?per_page=100', { headers });
+                if (!res.ok) process.exit(1);
+                const releases = await res.json();
+                const release = releases.find(r => r.tag_name === 'v' + version);
+                if (!release) process.exit(1);
+                const hasLatestYml = (release.assets || []).some(a => a.name === 'latest.yml');
+                process.exit(hasLatestYml ? 0 : 1);
+              })().catch(() => process.exit(1));
+            "; then
               echo "Updater metadata OK for v${VERSION}"
               exit 0
             fi
