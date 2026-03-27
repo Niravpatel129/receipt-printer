@@ -7,6 +7,7 @@ const { printReceipt } = require('./printer');
 const { startBackendPolling, stopBackendPolling } = require('./services/backendPrintService');
 const { isPortableWindowsBuild, checkForUpdates: checkPortableUpdates } = require('./services/portableUpdater');
 const { configureAutoUpdater } = require('./updater/feed');
+const { startOvernightUpdateCheck } = require('./updater/overnightCheck');
 const { record: recordUpdateStatus } = require('./updater/updateStatusStore');
 const logger = require('./logger');
 
@@ -31,6 +32,7 @@ if (!gotTheLock) {
   registerIpcHandlers();
 
   let mainWindow = null;
+  let scheduledOvernightUpdateInterval = null;
 
   app.on('second-instance', () => {
     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -55,7 +57,12 @@ if (!gotTheLock) {
         logger.error('Portable startup update check failed', { error: err?.message });
         send({ state: 'error', message: err?.message || 'Update check failed' });
       });
-      return;
+      return startOvernightUpdateCheck(() => {
+        if (win.isDestroyed()) return;
+        checkPortableUpdates(send).catch((err) => {
+          logger.error('Overnight portable update check failed', { error: err?.message });
+        });
+      });
     }
     try {
       configureAutoUpdater(autoUpdater);
@@ -80,6 +87,12 @@ if (!gotTheLock) {
     autoUpdater.checkForUpdates().catch((err) => {
       logger.error('Initial update check failed', { error: err?.message });
     });
+    return startOvernightUpdateCheck(() => {
+      if (win.isDestroyed()) return;
+      autoUpdater.checkForUpdates().catch((err) => {
+        logger.error('Overnight update check failed', { error: err?.message });
+      });
+    });
   }
 
   app.whenReady().then(async () => {
@@ -90,11 +103,17 @@ if (!gotTheLock) {
     });
     startPolling((payload) => printReceipt(payload), 2000);
     await startBackendPolling((payload) => printReceipt(payload));
-    if (app.isPackaged) setupAutoUpdater(mainWindow);
+    if (app.isPackaged) {
+      scheduledOvernightUpdateInterval = setupAutoUpdater(mainWindow);
+    }
     logger.info('App ready');
   });
 
   app.on('before-quit', () => {
+    if (scheduledOvernightUpdateInterval) {
+      clearInterval(scheduledOvernightUpdateInterval);
+      scheduledOvernightUpdateInterval = null;
+    }
     stopBackendPolling();
     logger.info('App before-quit');
   });
