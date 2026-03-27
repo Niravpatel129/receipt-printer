@@ -2,109 +2,272 @@ function drawDashed(printer) {
   printer.drawLine('-');
 }
 
+function drawSolid(printer) {
+  printer.drawLine('=');
+}
+
 const WEBSITE = 'PIZZADEPOT.CA';
-const FOOTER_MESSAGE = 'ENJOY YOUR MEAL!';
+const FEEDBACK_URL = 'PIZZADEPOT.CA/FEEDBACK';
+const COMMENTARY = 'YOU HAD OPTIONS. YOU CHOSE CORRECTLY.';
+const FOOTER_SIGN = 'COME BACK HUNGRY.';
+const FOOTER_PRIDE = 'PROUDLY CANADIAN  \u{1F341}  50+ LOCATIONS';
+const FOOTER_LEGAL = 'KEEP RECEIPT FOR ORDER DISPUTES.';
 
 const DEFAULT_RECEIPT = {
   storeName: 'PIZZA DEPOT',
-  address: '975 PETER ROBERTSON BLVD.',
-  city: 'BRAMPTON, ON',
-  orderNumber: '0411',
-  customerName: 'MARKO',
-  customerPhone: '555-555-5555',
-  date: 'FEB 7, 2026',
+  storeAddress: '4525 EBENEZER RD.',
+  storeCity: 'BRAMPTON, ON',
+  storePhone: '(905) 204-9711',
+  orderNumber: 'PD-20847',
+  orderType: 'DELIVERY',
+  date: 'MAR 23, 2026',
+  time: '7:14 PM',
+  driver: 'ARJUN K.',
+  eta: '7:42 PM',
+  customerName: 'NEHAL JOGANI',
+  customerPhone: '416-555-0192',
   items: [
     {
-      num: '01',
-      name: 'LARGE PIZZA',
-      amount: '22.99',
-      toppings: [
-        'TANDOORI PANEER',
-        'ROASTED RED PEPPERS',
-        'GREEN PEPPERS',
-        'ONIONS',
-        'GINGER',
-        'GREEN CHILLI',
-        'CORIANDER',
-        'CHILLI FLAKES',
-      ],
+      qty: '01',
+      name: 'CLASSIC MEAL',
+      amount: '19.99',
+      modifiers: {
+        SIZE: 'X-LARGE',
+        CRUST: 'THIN',
+        SAUCE: 'BUTTER CHICKEN',
+        FULL: 'MUSHROOM / ONION / GREEN PEPPER / ACHARI PANEER / TANDOORI CHICKEN / CORIANDER / GREEN CHILLIES / CHILLI FLAKES / GINGER / GARLIC',
+        LEFT: '-',
+        RIGHT: '-',
+        FINISH: 'STANDARD',
+        INCL: 'CREAMY GARLIC DIP',
+      },
     },
-    { num: '02', name: 'CREAMY GARLIC DIP', amount: '1.49' },
-    { num: '03', name: 'PEPSI CAN', amount: '1.99' },
+    { qty: '02', name: 'CREAMY GARLIC DIP', amount: '1.49' },
+    { qty: '03', name: 'GARLIC BREAD + CHEESE', amount: '1.49' },
+    { qty: '04', name: 'PEPSI CAN', amount: '1.49' },
   ],
-  itemCount: '3',
-  subtotal: '$ 22.99',
-  tax: '$ 3.48',
-  total: '$ 26.47',
-  cardLastFour: '9711',
+  itemCount: '4',
+  subtotal: '$ 24.46',
+  tax: '$ 3.18',
+  delivery: '$ 2.99',
+  tip: null,
+  total: '$ 30.63',
+  cardLastFour: '4821',
   authCode: '867324',
-  userId: 'MARKO K',
-  barcode: '0411',
+  userId: 'NEHAL J',
+  rewardPoints: '+31',
+  rewardProgress: '31 / 100 PTS TO NEXT FREE PIZZA.',
+  rewardNudge: "THAT'S LITERALLY ONE MORE VISIT.",
+  rewardCode: 'DEPOT-8821-K',
+  commentaryLine: COMMENTARY,
+  footerSign: FOOTER_SIGN,
   website: WEBSITE,
-  footerMessage: FOOTER_MESSAGE,
+  barcode: 'PD-20847',
 };
 
+function wordWrap(str, width = 38) {
+  const source = String(str || '');
+  const words = source.split(' ');
+  const lines = [];
+  let current = '';
+  for (const word of words) {
+    if ((`${current} ${word}`).trim().length > width) {
+      if (current) {
+        lines.push(current.trim());
+      }
+      current = word;
+    } else {
+      current = (`${current} ${word}`).trim();
+    }
+  }
+  if (current) {
+    lines.push(current.trim());
+  }
+  return lines.length ? lines : [''];
+}
+
+function padLabel(label, width = 7) {
+  return String(label || '').padEnd(width, ' ');
+}
+
+function normalizeItem(item, index) {
+  const qty = item.qty || item.num || String(index + 1).padStart(2, '0');
+  const name = item.name || 'ITEM';
+  const amount = item.amount ?? '0.00';
+  return {
+    ...item,
+    qty: String(qty),
+    name: String(name),
+    amount: String(amount),
+  };
+}
+
 function buildReceipt(printer, data = null) {
-  console.log('🚀 ~ data:', data);
-  const d = data && typeof data === 'object' ? { ...DEFAULT_RECEIPT, ...data } : DEFAULT_RECEIPT;
+  const merged = data && typeof data === 'object' ? { ...DEFAULT_RECEIPT, ...data } : { ...DEFAULT_RECEIPT };
+  const normalizedItems = (merged.items || []).map(normalizeItem);
+  const d = {
+    ...merged,
+    storeAddress: merged.storeAddress || merged.address || DEFAULT_RECEIPT.storeAddress,
+    storeCity: merged.storeCity || merged.city || DEFAULT_RECEIPT.storeCity,
+    orderType: merged.orderType || 'DELIVERY',
+    time: merged.time || '7:14 PM',
+    customerName: merged.customerName || 'VALUED CUSTOMER',
+    customerPhone: merged.customerPhone || '000-000-0000',
+    itemCount: merged.itemCount || String(normalizedItems.length),
+    barcode: merged.barcode || merged.orderNumber || DEFAULT_RECEIPT.barcode,
+    items: normalizedItems,
+  };
 
   printer.alignCenter();
   printer.setTextDoubleHeight();
-  printer.println(d.storeName);
-  printer.setTextNormal();
-  printer.println(d.address);
-  printer.println(d.city);
-  printer.newLine();
-  printer.alignLeft();
-  printer.println(d.customerName);
-  if (d.customerPhone) {
-    printer.println(d.customerPhone);
-  }
-  printer.println(`ORDER: #${d.orderNumber}`);
-  printer.println(`DATE: ${d.date}`);
-  drawDashed(printer);
   printer.bold(true);
-  printer.leftRight('NUM ITEM', 'AMT ($)');
+  printer.println(d.storeName);
+  printer.bold(false);
+  printer.setTextNormal();
+  printer.println(d.storeAddress);
+  printer.println(d.storeCity);
+  if (d.storePhone) {
+    printer.println(d.storePhone);
+  }
+  drawDashed(printer);
+
+  printer.alignLeft();
+  printer.newLine();
+  printer.bold(false);
+  printer.leftRight('ORDER ID', `#${d.orderNumber}`);
+  printer.bold(true);
+  printer.leftRight('CUSTOMER', d.customerName);
+  printer.bold(false);
+  printer.leftRight('PHONE', d.customerPhone);
+  printer.newLine();
+  printer.leftRight('DATE', d.date);
+  printer.leftRight('TIME', d.time);
+  if (d.driver) {
+    printer.leftRight('DRIVER', d.driver);
+  }
+  if (d.eta) {
+    printer.leftRight('ETA', d.eta);
+  }
+  printer.newLine();
+  drawDashed(printer);
+
+  printer.alignCenter();
+  printer.bold(true);
+  printer.println(`[ ${d.orderType} ]`);
   printer.bold(false);
   drawDashed(printer);
-  (d.items || []).forEach((item) => {
+  printer.newLine();
+
+  printer.alignLeft();
+  for (const item of d.items) {
     printer.bold(true);
-    printer.leftRight(`${item.num} ${item.name}`, item.amount);
+    printer.leftRight(`${item.qty}  ${item.name}`, `$${item.amount}`);
     printer.bold(false);
-    if (item.toppings) {
-      item.toppings.forEach((t) => printer.println(`   ${t}`));
+
+    if (item.modifiers) {
+      const MOD_ORDER = ['SIZE', 'CRUST', 'SAUCE', 'FULL', 'LEFT', 'RIGHT', 'FINISH', 'INCL'];
+      for (const key of MOD_ORDER) {
+        const val = item.modifiers[key];
+        if (val === undefined) {
+          continue;
+        }
+        const label = `   ${padLabel(key)}`;
+        const lines = wordWrap(val, 30);
+        printer.println(`${label}${lines[0]}`);
+        const indent = ' '.repeat(label.length);
+        for (let i = 1; i < lines.length; i += 1) {
+          printer.println(`${indent}${lines[i]}`);
+        }
+      }
     }
-  });
+
+    if (!item.modifiers && item.toppings) {
+      for (const topping of item.toppings) {
+        printer.println(`   ${topping}`);
+      }
+    }
+
+    printer.newLine();
+  }
+
   drawDashed(printer);
+
   printer.leftRight('ITEM COUNT', d.itemCount);
-  printer.bold(true);
+  printer.newLine();
   if (d.subtotal) {
     printer.leftRight('SUBTOTAL', d.subtotal);
   }
   if (d.tax) {
-    printer.leftRight('TAX', d.tax);
+    printer.leftRight('TAX (HST)', d.tax);
+  }
+  if (d.delivery) {
+    printer.leftRight('DELIVERY', d.delivery);
   }
   if (d.tip) {
     printer.leftRight('TIP', d.tip);
   }
+
+  printer.newLine();
+  drawSolid(printer);
+  printer.bold(true);
   printer.leftRight('TOTAL', d.total);
   printer.bold(false);
   drawDashed(printer);
-  printer.println(`CARD #: **** **** **** ${d.cardLastFour}`);
-  printer.println(`AUTH #: ${d.authCode}`);
-  printer.println(`USERID: ${d.userId}`);
+
+  printer.leftRight(`CARD #: **** **** **** ${d.cardLastFour}`, '');
+  printer.leftRight(`AUTH #: ${d.authCode}`, '');
+  printer.leftRight(`USERID: ${d.userId}`, 'PAID ✓');
   printer.newLine();
+  drawDashed(printer);
+
   printer.alignCenter();
-  printer.println(d.footerMessage);
+  printer.println(d.commentaryLine || COMMENTARY);
+  drawDashed(printer);
   printer.newLine();
+  drawDashed(printer);
+  printer.bold(true);
+  printer.println('PD REWARDS');
+  printer.bold(false);
+  drawDashed(printer);
+  printer.newLine();
+  printer.bold(true);
+  printer.setTextDoubleHeight();
+  printer.println(d.rewardPoints);
+  printer.setTextNormal();
+  printer.bold(false);
+  printer.println('POINTS EARNED THIS ORDER');
+  printer.newLine();
+  if (d.rewardProgress) {
+    printer.println(d.rewardProgress);
+  }
+  if (d.rewardNudge) {
+    printer.println(d.rewardNudge);
+  }
+  printer.newLine();
+  printer.bold(true);
+  printer.println(`[ ${d.rewardCode} ]`);
+  printer.bold(false);
+  drawDashed(printer);
+  printer.newLine();
+
   printer.code128(d.barcode, { height: 50, text: 0 });
   printer.newLine();
-  printer.println(d.website);
+
+  printer.bold(true);
+  printer.println(d.footerSign || FOOTER_SIGN);
+  printer.bold(false);
   printer.newLine();
-  printer.alignCenter();
-  printer.println('*');
+  printer.println('FEEDBACK? WE ACTUALLY WANT IT.');
+  printer.println(FEEDBACK_URL);
   printer.newLine();
+  printer.println(FOOTER_PRIDE);
+  printer.newLine();
+  printer.println(d.website || WEBSITE);
+  printer.newLine();
+  printer.println(FOOTER_LEGAL);
+  printer.newLine();
+
   printer.cut();
 }
 
-module.exports = { buildReceipt, drawDashed };
+module.exports = { buildReceipt, drawDashed, drawSolid, DEFAULT_RECEIPT };
