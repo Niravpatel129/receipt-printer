@@ -52,16 +52,45 @@ if (!gotTheLock) {
       recordUpdateStatus(data);
       if (!win.isDestroyed()) win.webContents.send('update-status', data);
     };
+    const tryAutoInstall = (version) => {
+      try {
+        send({ state: 'installing', version });
+        if (isPortableWindowsBuild()) {
+          logger.info('Auto-installing downloaded portable update', { version });
+          const { installDownloadedUpdate } = require('./services/portableUpdater');
+          installDownloadedUpdate();
+          return;
+        }
+        logger.info('Auto-installing downloaded update', { version });
+        autoUpdater.quitAndInstall(true, true);
+      } catch (err) {
+        logger.error('Auto-install after download failed', { error: err?.message, version });
+        send({
+          state: 'error',
+          message: err?.message || 'Auto-install failed. Use Install & Restart to try again.',
+          canInstall: true,
+          version,
+        });
+      }
+    };
     if (isPortableWindowsBuild()) {
-      checkPortableUpdates(send).catch((err) => {
-        logger.error('Portable startup update check failed', { error: err?.message });
-        send({ state: 'error', message: err?.message || 'Update check failed' });
-      });
+      checkPortableUpdates(send)
+        .then((result) => {
+          if (result?.updated) tryAutoInstall(result.latestVersion);
+        })
+        .catch((err) => {
+          logger.error('Portable startup update check failed', { error: err?.message });
+          send({ state: 'error', message: err?.message || 'Update check failed' });
+        });
       return startOvernightUpdateCheck(() => {
         if (win.isDestroyed()) return;
-        checkPortableUpdates(send).catch((err) => {
-          logger.error('Overnight portable update check failed', { error: err?.message });
-        });
+        checkPortableUpdates(send)
+          .then((result) => {
+            if (result?.updated) tryAutoInstall(result.latestVersion);
+          })
+          .catch((err) => {
+            logger.error('Overnight portable update check failed', { error: err?.message });
+          });
       });
     }
     try {
@@ -83,6 +112,7 @@ if (!gotTheLock) {
     autoUpdater.on('update-downloaded', (info) => {
       logger.info('Update downloaded', { version: info.version });
       send({ state: 'downloaded', version: info.version });
+      tryAutoInstall(info.version);
     });
     autoUpdater.checkForUpdates().catch((err) => {
       logger.error('Initial update check failed', { error: err?.message });

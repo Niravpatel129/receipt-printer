@@ -51,10 +51,25 @@ function registerIpcHandlers() {
     }
     if (isPortableWindowsBuild()) {
       try {
-        await checkPortableUpdates((data) => {
+        const result = await checkPortableUpdates((data) => {
           recordUpdateStatus(data);
           event.sender.send('update-status', data);
         });
+        if (result?.updated) {
+          try {
+            recordUpdateStatus({ state: 'installing', version: result.latestVersion });
+            event.sender.send('update-status', { state: 'installing', version: result.latestVersion });
+            installDownloadedUpdate();
+          } catch (err) {
+            logger.error('Portable auto-install failed after manual check', { error: err?.message });
+            event.sender.send('update-status', {
+              state: 'error',
+              message: err?.message || 'Auto-install failed. Use Install & Restart to try again.',
+              canInstall: true,
+              version: result.latestVersion,
+            });
+          }
+        }
       } catch (err) {
         logger.error('Portable manual update check failed', { error: err?.message });
         event.sender.send('update-status', { state: 'error', message: err?.message || 'Update check failed' });
