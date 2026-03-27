@@ -129,6 +129,7 @@ export default function UpdateSection() {
     if (state === 'available') return 'Available';
     if (state === 'downloading') return 'Downloading';
     if (state === 'downloaded') return 'Ready';
+    if (state === 'installing') return 'Installing';
     if (state === 'up-to-date') return 'Up to date';
     if (state === 'error') return 'Error';
     return 'Idle';
@@ -138,12 +139,14 @@ export default function UpdateSection() {
     if (!status) return null;
     if (status.state === 'available') return `Update available — v${status.version}`;
     if (status.state === 'downloading') return `Downloading… ${status.progress != null ? Math.round(status.progress) + '%' : ''}`;
-    if (status.state === 'downloaded') return `v${status.version} ready — install now or restart to auto-apply`;
+    if (status.state === 'downloaded') return `v${status.version} downloaded — installing automatically…`;
+    if (status.state === 'installing') return `Installing v${status.version || ''}… app will restart automatically.`;
     if (status.state === 'error') return status.message || 'Could not check for updates.';
     return STATUS_LABELS[status.state] ?? null;
   }
 
-  const isBlocked = busy || status?.state === 'downloading' || status?.state === 'downloaded';
+  const isBlocked = busy || status?.state === 'downloading' || status?.state === 'downloaded' || status?.state === 'installing';
+  const canManualInstall = status?.state === 'downloaded' || Boolean(status?.canInstall);
   const clientLines = client ? formatClient(client) : null;
   const statusTime = status?.at ? new Date(status.at).toLocaleTimeString() : null;
   const progressPercent = status?.state === 'downloaded'
@@ -151,8 +154,14 @@ export default function UpdateSection() {
     : (status?.state === 'downloading' && Number.isFinite(status?.progress))
       ? Math.max(0, Math.min(100, Math.round(status.progress)))
       : null;
-  const showProgress = Boolean(status?.state === 'checking' || status?.state === 'available' || status?.state === 'downloading' || status?.state === 'downloaded');
-  const isProgressIndeterminate = status?.state === 'checking' || status?.state === 'available';
+  const showProgress = Boolean(
+    status?.state === 'checking'
+    || status?.state === 'available'
+    || status?.state === 'downloading'
+    || status?.state === 'downloaded'
+    || status?.state === 'installing'
+  );
+  const isProgressIndeterminate = status?.state === 'checking' || status?.state === 'available' || status?.state === 'installing';
 
   return (
     <div className="section-card">
@@ -170,7 +179,7 @@ export default function UpdateSection() {
         >
           {busy ? 'Checking…' : 'Check for Updates'}
         </button>
-        {status?.state === 'downloaded' && (
+        {canManualInstall && (
           <button
             type="button"
             className="queue-action-btn update-install-btn"
