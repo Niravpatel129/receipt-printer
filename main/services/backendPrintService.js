@@ -134,28 +134,53 @@ function toCurrency(value) {
 function orderToReceiptPayload(order) {
   const subtotal = toCurrency(order.subtotal);
   const tax = toCurrency(order.tax);
+  const delivery = toCurrency(order.deliveryFee);
   const tip =
     order.tip != null
       ? toCurrency(order.tip)
       : order.tipAmount != null
         ? toCurrency(Number(order.tipAmount) / 100)
         : '';
+  const total = toCurrency(order.total) || '$ 0.00';
+  const website =
+    order.receiptFooterWebsite ||
+    order.footerWebsite ||
+    order.website ||
+    process.env.RECEIPT_DEFAULT_WEBSITE ||
+    'https://pizzadepot.com';
+  const footerMessage = order.receiptFooterMessage || order.footerMessage || '';
+  const storeAddress = order.receiptAddressLine1 || order.addressLine1 || '';
+  const storeCity = order.receiptAddressLine2 || order.addressLine2 || '';
+  const orderType = order.orderType || order.fulfillmentType || '';
+  const customerName = order.customerName || (order.customer && order.customer.name) || '';
+  const customerPhone = order.customerPhone || (order.customer && order.customer.phone) || '';
   if (order.receipt && typeof order.receipt === 'object') {
     return {
       ...order.receipt,
+      storeAddress: order.receipt.storeAddress || order.receipt.address || storeAddress,
+      storeCity: order.receipt.storeCity || order.receipt.city || storeCity,
+      address: order.receipt.address || order.receipt.storeAddress || storeAddress,
+      city: order.receipt.city || order.receipt.storeCity || storeCity,
+      orderType: order.receipt.orderType || orderType,
+      customerPhone: order.receipt.customerPhone || customerPhone,
       subtotal: order.receipt.subtotal || subtotal,
       tax: order.receipt.tax || tax,
+      delivery: order.receipt.delivery || delivery,
       tip: order.receipt.tip || tip,
+      total: order.receipt.total || total,
+      website: order.receipt.website || website,
+      footerMessage: order.receipt.footerMessage || footerMessage,
     };
   }
   const items = (order.items || []).map((it, i) => ({
+    qty: String(it.quantity != null ? it.quantity : i + 1),
     num: String(i + 1).padStart(2, '0'),
     name: (it.name || it.title || '').toUpperCase(),
     amount:
       typeof it.price !== 'undefined' ? String(Number(it.price).toFixed(2)) : it.amount || '0.00',
-    toppings: it.toppings || it.options,
+    modifiers: it.modifiers || undefined,
+    toppings: it.toppings || it.optionsDisplay || it.options || undefined,
   }));
-  const total = toCurrency(order.total) || '$ 0.00';
   const dateStr = order.orderDate || order.date || order.createdAt || '';
   const date = dateStr
     ? new Date(dateStr)
@@ -166,23 +191,28 @@ function orderToReceiptPayload(order) {
   const cardLastFour = payment.lastFour || payment.cardLastFour || payment.last4 || '';
   return {
     storeName: order.receiptStoreName || order.storeName || '',
-    address: order.receiptAddressLine1 || order.addressLine1 || '',
-    city: order.receiptAddressLine2 || order.addressLine2 || '',
+    storeAddress,
+    storeCity,
+    address: storeAddress,
+    city: storeCity,
     orderNumber: order.orderNumber || order._id || '',
-    customerName: order.customerName || (order.customer && order.customer.name) || '',
+    orderType: String(orderType || '').toUpperCase(),
+    customerName,
+    customerPhone,
     date: date,
     items,
     itemCount: String(order.itemCount != null ? order.itemCount : items.length),
     subtotal,
     tax,
+    delivery,
     tip,
     total,
     cardLastFour: cardLastFour ? String(cardLastFour).slice(-4) : '',
     authCode: payment.authCode || payment.authNumber || '',
-    userId: order.userId || order.customerName || '',
+    userId: order.userId || customerName || '',
     barcode: order.orderNumber || order._id || '',
-    website: order.receiptFooterWebsite || order.footerWebsite || '',
-    footerMessage: order.receiptFooterMessage || order.footerMessage || '',
+    website,
+    footerMessage,
   };
 }
 
