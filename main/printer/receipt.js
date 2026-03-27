@@ -1,7 +1,6 @@
 function drawDashed(printer) {
   printer.drawLine('-');
 }
-//
 
 const WEBSITE = 'PIZZADEPOT.CA';
 const FOOTER_MESSAGE = 'ENJOY YOUR MEAL!';
