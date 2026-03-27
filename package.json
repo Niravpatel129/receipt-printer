@@ -51,7 +51,8 @@
     "publish": {
       "provider": "github",
       "owner": "Niravpatel129",
-      "repo": "receipt-printer"
+      "repo": "receipt-printer",
+      "releaseType": "release"
     }
   },
   "devDependencies": {
