@@ -154,6 +154,8 @@ function orderToReceiptPayload(order) {
   const orderType = order.orderType || order.fulfillmentType || '';
   const customerName = order.customerName || (order.customer && order.customer.name) || '';
   const customerPhone = order.customerPhone || (order.customer && order.customer.phone) || '';
+  const payment = order.payment || {};
+  const cardLastFour = payment.lastFour || payment.cardLastFour || payment.last4 || '';
   if (order.receipt && typeof order.receipt === 'object') {
     return {
       ...order.receipt,
@@ -168,6 +170,12 @@ function orderToReceiptPayload(order) {
       delivery: order.receipt.delivery || delivery,
       tip: order.receipt.tip || tip,
       total: order.receipt.total || total,
+      cardLastFour:
+        (order.receipt.cardLastFour != null ? order.receipt.cardLastFour : cardLastFour) != null
+          ? String(order.receipt.cardLastFour != null ? order.receipt.cardLastFour : cardLastFour).slice(-4)
+          : '',
+      authCode: order.receipt.authCode || payment.authCode || payment.authNumber || '',
+      userId: order.receipt.userId || order.userId || customerName || '',
       website: order.receipt.website || website,
       footerMessage: order.receipt.footerMessage || footerMessage,
     };
@@ -187,8 +195,6 @@ function orderToReceiptPayload(order) {
         .toLocaleDateString('en-CA', { year: 'numeric', month: 'short', day: 'numeric' })
         .toUpperCase()
     : '';
-  const payment = order.payment || {};
-  const cardLastFour = payment.lastFour || payment.cardLastFour || payment.last4 || '';
   return {
     storeName: order.receiptStoreName || order.storeName || '',
     storeAddress,

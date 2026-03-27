@@ -117,6 +117,11 @@ function normalizeModifierGroups(modifiers) {
   return Object.keys(out).length ? out : null;
 }
 
+function fromSource(source, key, fallback = '') {
+  if (!source || typeof source !== 'object') return fallback;
+  return Object.prototype.hasOwnProperty.call(source, key) ? source[key] : fallback;
+}
+
 function normalizeItem(item, index) {
   const qty = item.qty || item.num || item.quantity || String(index + 1).padStart(2, '0');
   const name = String(item.name || 'ITEM').toUpperCase();
@@ -160,6 +165,13 @@ function buildReceipt(printer, data = null) {
     total: toMoneyString(merged.total, DEFAULT_RECEIPT.total),
     website: merged.website || DEFAULT_RECEIPT.website,
     footerSign: merged.footerSign || merged.footerMessage || DEFAULT_RECEIPT.footerSign,
+    cardLastFour: merged.cardLastFour ? String(merged.cardLastFour).slice(-4) : '',
+    authCode: merged.authCode ? String(merged.authCode) : '',
+    userId: merged.userId ? String(merged.userId) : '',
+    rewardPoints: fromSource(source, 'rewardPoints', ''),
+    rewardProgress: fromSource(source, 'rewardProgress', ''),
+    rewardNudge: fromSource(source, 'rewardNudge', ''),
+    rewardCode: fromSource(source, 'rewardCode', ''),
     items: normalizedItems,
   };
 
