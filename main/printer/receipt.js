@@ -91,8 +91,42 @@ function wordWrap(str, width = 38) {
   return lines.length ? lines : [''];
 }
 
-function padLabel(label, width = 7) {
-  return String(label || '').padEnd(width, ' ');
+const RECEIPT_LINE_WIDTH = 42;
+const MOD_BLOCK_INDENT = 3;
+const MOD_LABEL_COL_WIDTH = 9;
+const MOD_LABEL_GUTTER = 1;
+
+function formatModifierLabel(key) {
+  const k = String(key || '').toUpperCase();
+  return k === 'INCL' ? 'INCL.' : k;
+}
+
+function rightAlignInColumn(text, width) {
+  const s = String(text);
+  if (s.length >= width) return s.slice(0, width);
+  return ' '.repeat(width - s.length) + s;
+}
+
+function printModifierRows(printer, key, rawVal) {
+  const labelCol = rightAlignInColumn(formatModifierLabel(key), MOD_LABEL_COL_WIDTH);
+  const valueText = Array.isArray(rawVal) ? rawVal.join(' / ') : String(rawVal);
+  const prefix = ' '.repeat(MOD_BLOCK_INDENT);
+  const valueWidth =
+    RECEIPT_LINE_WIDTH - MOD_BLOCK_INDENT - MOD_LABEL_COL_WIDTH - MOD_LABEL_GUTTER;
+  const lines = wordWrap(valueText, valueWidth);
+  const gap = ' '.repeat(MOD_LABEL_GUTTER);
+  const contIndent = prefix + ' '.repeat(MOD_LABEL_COL_WIDTH + MOD_LABEL_GUTTER);
+
+  printer.bold(false);
+  printer.print(`${prefix}${labelCol}${gap}`);
+  printer.bold(true);
+  printer.println(lines[0]);
+  for (let i = 1; i < lines.length; i += 1) {
+    printer.bold(false);
+    printer.print(contIndent);
+    printer.bold(true);
+    printer.println(lines[i]);
+  }
 }
 
 function toMoneyString(value, fallback = '') {
@@ -246,14 +280,9 @@ async function buildReceipt(printer, data = null) {
         if (val === undefined) {
           continue;
         }
-        const label = `   ${padLabel(key)}`;
-        const lines = wordWrap(Array.isArray(val) ? val.join(' / ') : val, 30);
-        printer.println(`${label}${lines[0]}`);
-        const indent = ' '.repeat(label.length);
-        for (let i = 1; i < lines.length; i += 1) {
-          printer.println(`${indent}${lines[i]}`);
-        }
+        printModifierRows(printer, key, val);
       }
+      printer.bold(false);
     }
 
     if (!item.modifiers && item.toppings) {
