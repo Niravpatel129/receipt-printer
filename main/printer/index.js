@@ -104,7 +104,7 @@ async function printReceipt(payload = null) {
     driver: printerDriver,
   });
   logger.info('Starting print', { printerName, hasPayload: Boolean(payload) });
-  buildReceipt(printer, payload);
+  await buildReceipt(printer, payload);
   await withTimeout(
     printer.execute(),
     PRINT_TIMEOUT_MS,

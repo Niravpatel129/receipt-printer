@@ -1,3 +1,8 @@
+const path = require('path');
+const fs = require('fs');
+
+const RECEIPT_HEADER_PNG = path.join(__dirname, '..', '..', 'assets', 'receipt-header.png');
+
 function drawDashed(printer) {
   printer.drawLine('-');
 }
@@ -147,7 +152,7 @@ function normalizeItem(item, index) {
   };
 }
 
-function buildReceipt(printer, data = null) {
+async function buildReceipt(printer, data = null) {
   const source =
     data && typeof data === 'object' && data.receipt && typeof data.receipt === 'object'
       ? { ...data, ...data.receipt }
@@ -185,6 +190,10 @@ function buildReceipt(printer, data = null) {
   };
 
   printer.alignCenter();
+  if (fs.existsSync(RECEIPT_HEADER_PNG)) {
+    await printer.printImage(RECEIPT_HEADER_PNG);
+    printer.newLine();
+  }
   printer.setTextDoubleHeight();
   printer.bold(true);
   printer.println(d.storeName);
