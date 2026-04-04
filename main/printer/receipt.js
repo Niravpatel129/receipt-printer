@@ -1,7 +1,22 @@
 const path = require('path');
 const fs = require('fs');
+const { PNG } = require('pngjs');
 
+const logger = require('../logger');
 const RECEIPT_HEADER_PNG = path.join(__dirname, '..', '..', 'assets', 'receipt-header.png');
+
+async function tryPrintHeaderImage(printer) {
+  if (!fs.existsSync(RECEIPT_HEADER_PNG)) return;
+  try {
+    const raw = fs.readFileSync(RECEIPT_HEADER_PNG);
+    const png = PNG.sync.read(raw);
+    const normalized = PNG.sync.write(png);
+    await printer.printImageBuffer(normalized);
+    printer.newLine();
+  } catch (err) {
+    logger.warn('Receipt header image skipped', { message: err && err.message });
+  }
+}
 
 function drawDashed(printer) {
   printer.drawLine('-');
@@ -224,10 +239,7 @@ async function buildReceipt(printer, data = null) {
   };
 
   printer.alignCenter();
-  if (fs.existsSync(RECEIPT_HEADER_PNG)) {
-    await printer.printImage(RECEIPT_HEADER_PNG);
-    printer.newLine();
-  }
+  await tryPrintHeaderImage(printer);
   printer.setTextDoubleHeight();
   printer.bold(true);
   printer.println(d.storeName);
