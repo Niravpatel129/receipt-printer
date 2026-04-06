@@ -1,23 +1,3 @@
-const path = require('path');
-const fs = require('fs');
-const { PNG } = require('pngjs');
-
-const logger = require('../logger');
-const RECEIPT_HEADER_PNG = path.join(__dirname, '..', '..', 'assets', 'receipt-header.png');
-
-async function tryPrintHeaderImage(printer) {
-  if (!fs.existsSync(RECEIPT_HEADER_PNG)) return;
-  try {
-    const raw = fs.readFileSync(RECEIPT_HEADER_PNG);
-    const png = PNG.sync.read(raw);
-    const normalized = PNG.sync.write(png);
-    await printer.printImageBuffer(normalized);
-    printer.newLine();
-  } catch (err) {
-    logger.warn('Receipt header image skipped', { message: err && err.message });
-  }
-}
-
 function drawDashed(printer) {
   printer.drawLine('-');
 }
@@ -126,8 +106,7 @@ function printModifierRows(printer, key, rawVal) {
   const labelCol = rightAlignInColumn(formatModifierLabel(key), MOD_LABEL_COL_WIDTH);
   const valueText = Array.isArray(rawVal) ? rawVal.join(' / ') : String(rawVal);
   const prefix = ' '.repeat(MOD_BLOCK_INDENT);
-  const valueWidth =
-    RECEIPT_LINE_WIDTH - MOD_BLOCK_INDENT - MOD_LABEL_COL_WIDTH - MOD_LABEL_GUTTER;
+  const valueWidth = RECEIPT_LINE_WIDTH - MOD_BLOCK_INDENT - MOD_LABEL_COL_WIDTH - MOD_LABEL_GUTTER;
   const lines = wordWrap(valueText, valueWidth);
   const gap = ' '.repeat(MOD_LABEL_GUTTER);
   const contIndent = prefix + ' '.repeat(MOD_LABEL_COL_WIDTH + MOD_LABEL_GUTTER);
@@ -201,7 +180,7 @@ function normalizeItem(item, index) {
   };
 }
 
-async function buildReceipt(printer, data = null) {
+function buildReceipt(printer, data = null) {
   const source =
     data && typeof data === 'object' && data.receipt && typeof data.receipt === 'object'
       ? { ...data, ...data.receipt }
@@ -239,7 +218,6 @@ async function buildReceipt(printer, data = null) {
   };
 
   printer.alignCenter();
-  await tryPrintHeaderImage(printer);
   printer.setTextDoubleHeight();
   printer.bold(true);
   printer.println(d.storeName);
@@ -334,14 +312,16 @@ async function buildReceipt(printer, data = null) {
   if (d.authCode) {
     printer.leftRight(`AUTH #: ${d.authCode}`, '');
   }
-  printer.leftRight(`USERID: ${d.userId}`, 'PAID ✓');
   printer.newLine();
   drawDashed(printer);
 
   printer.alignCenter();
   printer.println(d.commentaryLine || COMMENTARY);
   const hasRewardsData =
-    (d.rewardPoints != null && d.rewardPoints !== '') || d.rewardProgress || d.rewardNudge || d.rewardCode;
+    (d.rewardPoints != null && d.rewardPoints !== '') ||
+    d.rewardProgress ||
+    d.rewardNudge ||
+    d.rewardCode;
   if (hasRewardsData) {
     drawDashed(printer);
     printer.newLine();
