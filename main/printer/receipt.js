@@ -276,9 +276,11 @@ function buildReceipt(printer, data = null) {
     }
 
     if (!item.modifiers && item.toppings) {
-      for (const topping of item.toppings) {
-        printer.println(`   ${topping}`);
-      }
+      const toppingLabels = ['FULL', 'LEFT', 'RIGHT', 'FINISH'];
+      item.toppings.forEach((topping, i) => {
+        const label = toppingLabels[i];
+        printer.println(label ? `   ${label} ${topping}` : `   ${topping}`);
+      });
     }
 
     printer.newLine();
