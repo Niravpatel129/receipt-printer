@@ -365,7 +365,14 @@
         const p = o.payload || {};
         const receiptHeader = [p.storeName, [p.address, p.city].filter(Boolean).join(', ')].filter(Boolean).join(' — ') || '—';
         const receiptItems = (p.items || []).map((it) => {
-          const toppings = (it.toppings || []).length ? '<br>' + (it.toppings || []).map((t) => '  ' + escapeHtml(t)).join('<br>') : '';
+          const toppingLabels = ['FULL', 'LEFT', 'RIGHT', 'FINISH'];
+          const topArr = it.toppings || [];
+          const toppings = topArr.length
+            ? '<br>' +
+              topArr
+                .map((t, i) => (toppingLabels[i] ? `${toppingLabels[i]} ${escapeHtml(t)}` : escapeHtml(t)))
+                .join('<br>')
+            : '';
           return `${escapeHtml(it.num || '')} ${escapeHtml(it.name || '')} ${escapeHtml(it.amount || '')}${toppings}`;
         }).join('<br>') || '—';
         const receiptFooter = [p.website, p.footerMessage].filter(Boolean).join(' · ') || '—';

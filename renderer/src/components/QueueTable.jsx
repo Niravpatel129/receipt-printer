@@ -45,8 +45,13 @@ function OrderDetailRow({ order, status }) {
   const receiptItems =
     (p.items || [])
       .map((it) => {
-        const toppings = (it.toppings || []).length
-          ? '<br>' + (it.toppings || []).map((t) => '  ' + t).join('<br>')
+        const toppingLabels = ['FULL', 'LEFT', 'RIGHT', 'FINISH'];
+        const topArr = it.toppings || [];
+        const toppings = topArr.length
+          ? '<br>' +
+            topArr
+              .map((t, i) => (toppingLabels[i] ? `${toppingLabels[i]} ${t}` : t))
+              .join('<br>')
           : '';
         return `${it.num || ''} ${it.name || ''} ${it.amount || ''}${toppings}`;
       })
