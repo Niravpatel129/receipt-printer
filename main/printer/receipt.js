@@ -91,9 +91,117 @@ const MOD_BLOCK_INDENT = 3;
 const MOD_LABEL_COL_WIDTH = 9;
 const MOD_LABEL_GUTTER = 1;
 
+const MOD_HEADER_KEYS = new Set(['SIZE', 'CRUST', 'SAUCE']);
+const MOD_TAIL_KEYS = new Set(['FINISH', 'INCL', 'INCL.']);
+const MOD_INSTRUCTION_KEYS = new Set([
+  'SPECIAL INSTRUCTIONS',
+  'SPECIAL',
+  'NOTES',
+  'INSTRUCTIONS',
+  'COMMENT',
+  'ORDER NOTES',
+  'REQUEST',
+  'CUSTOMER NOTE',
+]);
+
+function normModKey(key) {
+  return String(key || '')
+    .toUpperCase()
+    .trim();
+}
+
 function formatModifierLabel(key) {
-  const k = String(key || '').toUpperCase();
+  const k = normModKey(key);
   return k === 'INCL' ? 'INCL.' : k;
+}
+
+function orderTypeShortCode(orderType) {
+  const t = String(orderType || '').toUpperCase();
+  if (t.includes('PICK')) return 'PU';
+  if (t.includes('DELIV')) return 'DL';
+  if (t.includes('DINE')) return 'DI';
+  return '';
+}
+
+function isRedundantRegularCheese(key, rawVal) {
+  if (normModKey(key) !== 'CHEESE') return false;
+  const v = Array.isArray(rawVal) ? rawVal.join(' ') : String(rawVal);
+  const u = v.toUpperCase().replace(/\s+/g, ' ').trim();
+  return (
+    u === 'REGULAR CHEESE' ||
+    u === 'REGULAR' ||
+    u === 'CHEESE' ||
+    u === 'NORMAL CHEESE' ||
+    u === 'REGULAR CHEESE - NORMAL'
+  );
+}
+
+function instructionTextForItem(item, receiptLevel) {
+  const uniq = new Set();
+  for (const s of [
+    item && item.specialInstructions,
+    item && item.orderSpecialInstructions,
+    receiptLevel,
+  ]) {
+    const t = String(s || '').trim();
+    if (t) uniq.add(t);
+  }
+  return [...uniq].join(' ');
+}
+
+function applyBeefAnchovySwap(instructionText, pieces) {
+  const instr = String(instructionText || '').toUpperCase();
+  const wantsAnchovy = /ANCHOV/.test(instr);
+  const swapBeef =
+    /INSTEAD\s+OF\s+BEEF|NO\s+BEEF|NOT\s+BEEF|SUB\s+BEEF|REPLACE\s+BEEF|BEEF.*ANCHOV|ANCHOV.*BEEF/.test(
+      instr,
+    );
+  if (!wantsAnchovy || !swapBeef) return pieces;
+  const out = pieces.filter((p) => !/GROUND\s*BEEF|BEEF\s+TOPPING|^BEEF\s+-/i.test(p));
+  const hasAnchovy = out.some((p) => /ANCHOV/i.test(p));
+  if (!hasAnchovy) out.push('ANCHOVIES');
+  return out;
+}
+
+function flattenModifierValues(key, rawVal) {
+  const k = normModKey(key);
+  if (Array.isArray(rawVal)) {
+    return rawVal.map((v) => String(v).trim()).filter(Boolean);
+  }
+  const s = String(rawVal || '').trim();
+  if (!s) return [];
+  if (k === 'FULL' || k === 'LEFT' || k === 'RIGHT') {
+    return s.split(/\s*\/\s*/).map((x) => x.trim()).filter(Boolean);
+  }
+  return [s];
+}
+
+function collectToppingPieces(modifiers) {
+  if (!modifiers || typeof modifiers !== 'object') return [];
+  const pieces = [];
+  for (const key of Object.keys(modifiers)) {
+    const nk = normModKey(key);
+    if (MOD_HEADER_KEYS.has(nk) || MOD_TAIL_KEYS.has(nk) || MOD_INSTRUCTION_KEYS.has(nk)) continue;
+    if (isRedundantRegularCheese(key, modifiers[key])) continue;
+    pieces.push(...flattenModifierValues(key, modifiers[key]));
+  }
+  return pieces;
+}
+
+function toppingSummaryLine(pieces) {
+  if (!pieces.length) return '';
+  return pieces
+    .map((p) =>
+      String(p)
+        .toLowerCase()
+        .replace(/\b\w/g, (c) => c.toUpperCase()),
+    )
+    .join(', ');
+}
+
+function printModifierGroupBorder(printer) {
+  printer.bold(false);
+  printer.println(`${' '.repeat(MOD_BLOCK_INDENT)}${'-'.repeat(Math.max(8, RECEIPT_LINE_WIDTH - MOD_BLOCK_INDENT))}`);
 }
 
 function rightAlignInColumn(text, width) {
@@ -169,6 +277,10 @@ function normalizeItem(item, index) {
   const toppings = groupedModifiers
     ? asStringArray(item.toppings)
     : asStringArray(item.toppings || item.optionsDisplay || item.options || item.modifiers);
+  const specialInstructions = String(
+    item.specialInstructions || item.specialInstruction || item.instructions || '',
+  ).trim();
+  const orderSpecialInstructions = String(item.orderSpecialInstructions || '').trim();
   return {
     ...item,
     qty: String(qty),
@@ -177,6 +289,8 @@ function normalizeItem(item, index) {
     amount: String(amount),
     modifiers: groupedModifiers || undefined,
     toppings: toppings.length ? toppings : undefined,
+    specialInstructions: specialInstructions || undefined,
+    orderSpecialInstructions: orderSpecialInstructions || undefined,
   };
 }
 
@@ -214,6 +328,7 @@ function buildReceipt(printer, data = null) {
     rewardProgress: fromSource(source, 'rewardProgress', ''),
     rewardNudge: fromSource(source, 'rewardNudge', ''),
     rewardCode: fromSource(source, 'rewardCode', ''),
+    specialInstructions: String(merged.specialInstructions || '').trim(),
     items: normalizedItems,
   };
 
@@ -233,7 +348,9 @@ function buildReceipt(printer, data = null) {
   printer.alignLeft();
   printer.newLine();
   printer.bold(false);
-  printer.leftRight('ORDER ID', `#${d.orderNumber}`);
+  const typeShort = orderTypeShortCode(d.orderType);
+  printer.leftRight('ORDER ID', typeShort ? `#${d.orderNumber}  ${typeShort}` : `#${d.orderNumber}`);
+  printer.leftRight('TYPE', d.orderType || '—');
   printer.bold(true);
   printer.leftRight('CUSTOMER', d.customerName);
   printer.bold(false);
@@ -249,38 +366,83 @@ function buildReceipt(printer, data = null) {
   }
   printer.newLine();
   drawDashed(printer);
-
-  printer.alignCenter();
-  printer.bold(true);
-  printer.println(`[ ${d.orderType} ]`);
-  printer.bold(false);
-  drawDashed(printer);
   printer.newLine();
 
   printer.alignLeft();
+  const toppingFootnotes = [];
+
   for (const item of d.items) {
     printer.bold(true);
     printer.leftRight(`${item.qty}  ${item.name}`, `$${item.amount}`);
     printer.bold(false);
 
+    const mergedInstr = instructionTextForItem(item, d.specialInstructions);
+
     if (item.modifiers) {
-      const MOD_ORDER = ['SIZE', 'CRUST', 'SAUCE', 'FULL', 'LEFT', 'RIGHT', 'FINISH', 'INCL'];
-      for (const key of MOD_ORDER) {
-        const val = item.modifiers[key];
-        if (val === undefined) {
-          continue;
+      printModifierGroupBorder(printer);
+      const m = item.modifiers;
+      const sizeEntry = Object.entries(m).find(([k]) => normModKey(k) === 'SIZE');
+      if (sizeEntry) {
+        const sizeVal = sizeEntry[1];
+        const sizeStr = Array.isArray(sizeVal) ? sizeVal.join(' ') : String(sizeVal);
+        if (sizeStr.trim()) {
+          printer.setTextDoubleHeight();
+          printer.bold(true);
+          printer.println(`${' '.repeat(MOD_BLOCK_INDENT)}SIZE: ${String(sizeStr).toUpperCase()}`);
+          printer.setTextNormal();
+          printer.bold(false);
         }
+      }
+
+      const headerOrder = ['CRUST', 'SAUCE'];
+      for (const canon of headerOrder) {
+        const entry = Object.entries(m).find(([k]) => normModKey(k) === canon);
+        if (!entry) continue;
+        const [key, val] = entry;
+        if (val === undefined) continue;
+        printModifierRows(printer, key, val);
+      }
+
+      const instrKeys = Object.keys(m).filter((k) => MOD_INSTRUCTION_KEYS.has(normModKey(k)));
+      for (const key of instrKeys) {
+        printModifierRows(printer, key, m[key]);
+      }
+
+      if (mergedInstr && !instrKeys.length) {
+        printModifierRows(printer, 'SPECIAL', mergedInstr);
+      }
+
+      let pieces = collectToppingPieces(m);
+      pieces = applyBeefAnchovySwap(mergedInstr, pieces);
+      if (pieces.length) {
+        const oneLine = pieces.join(', ');
+        printModifierRows(printer, 'TOPPINGS', oneLine);
+        const summary = toppingSummaryLine(pieces);
+        if (summary) toppingFootnotes.push(summary);
+      }
+
+      const tailOrder = ['FINISH', 'INCL'];
+      for (const canon of tailOrder) {
+        const entry = Object.entries(m).find(([k]) => normModKey(k) === canon);
+        if (!entry) continue;
+        const [key, val] = entry;
+        if (val === undefined) continue;
         printModifierRows(printer, key, val);
       }
       printer.bold(false);
-    }
-
-    if (!item.modifiers && item.toppings) {
-      const toppingLabels = ['FULL', 'LEFT', 'RIGHT', 'FINISH'];
-      item.toppings.forEach((topping, i) => {
-        const label = toppingLabels[i];
-        printer.println(label ? `   ${label} ${topping}` : `   ${topping}`);
-      });
+    } else if (item.toppings) {
+      const instr = mergedInstr;
+      let parts = item.toppings.map((t) => String(t).trim()).filter(Boolean);
+      parts = applyBeefAnchovySwap(instr, parts);
+      if (instr) {
+        printModifierRows(printer, 'SPECIAL', instr);
+      }
+      const oneLine = parts.join(', ');
+      if (oneLine) {
+        printModifierRows(printer, 'TOPPINGS', oneLine);
+        const summary = toppingSummaryLine(parts);
+        if (summary) toppingFootnotes.push(summary);
+      }
     }
 
     printer.newLine();
@@ -360,6 +522,15 @@ function buildReceipt(printer, data = null) {
 
   printer.code128(d.barcode, { height: 50, text: 0 });
   printer.newLine();
+
+  if (toppingFootnotes.length) {
+    printer.alignLeft();
+    printer.bold(false);
+    for (const line of toppingFootnotes) {
+      printer.println(line);
+    }
+    printer.newLine();
+  }
 
   printer.bold(true);
   printer.println(d.footerSign || FOOTER_SIGN);
