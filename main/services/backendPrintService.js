@@ -156,7 +156,34 @@ function orderToReceiptPayload(order) {
   const customerPhone = order.customerPhone || (order.customer && order.customer.phone) || '';
   const payment = order.payment || {};
   const cardLastFour = payment.lastFour || payment.cardLastFour || payment.last4 || '';
+  const orderSpecialFromRoot =
+    order.specialInstructions ||
+    order.specialInstruction ||
+    order.orderInstructions ||
+    order.kitchenNotes ||
+    order.notes ||
+    '';
+
   if (order.receipt && typeof order.receipt === 'object') {
+    const rawLineItems = Array.isArray(order.items) ? order.items : [];
+    const receiptItems = Array.isArray(order.receipt.items) ? order.receipt.items : [];
+    const mergedItems = receiptItems.map((rit, i) => {
+      const raw = rawLineItems[i] || {};
+      const lineSi =
+        rit.specialInstructions ||
+        rit.specialInstruction ||
+        raw.specialInstructions ||
+        raw.specialInstruction ||
+        raw.instructions ||
+        raw.customerNote ||
+        raw.note ||
+        '';
+      return {
+        ...rit,
+        specialInstructions: lineSi || undefined,
+        orderSpecialInstructions: orderSpecialFromRoot || undefined,
+      };
+    });
     return {
       ...order.receipt,
       storeAddress: order.receipt.storeAddress || order.receipt.address || storeAddress,
@@ -178,8 +205,11 @@ function orderToReceiptPayload(order) {
       userId: order.receipt.userId || order.userId || customerName || '',
       website: order.receipt.website || website,
       footerMessage: order.receipt.footerMessage || footerMessage,
+      specialInstructions: order.receipt.specialInstructions || orderSpecialFromRoot || undefined,
+      items: mergedItems.length ? mergedItems : order.receipt.items,
     };
   }
+  const orderSpecial = orderSpecialFromRoot;
   const items = (order.items || []).map((it, i) => ({
     qty: String(it.quantity != null ? it.quantity : i + 1),
     num: String(i + 1).padStart(2, '0'),
@@ -188,6 +218,14 @@ function orderToReceiptPayload(order) {
       typeof it.price !== 'undefined' ? String(Number(it.price).toFixed(2)) : it.amount || '0.00',
     modifiers: it.modifiers || undefined,
     toppings: it.toppings || it.optionsDisplay || it.options || undefined,
+    specialInstructions:
+      it.specialInstructions ||
+      it.specialInstruction ||
+      it.instructions ||
+      it.customerNote ||
+      it.note ||
+      '',
+    orderSpecialInstructions: orderSpecial || undefined,
   }));
   const dateStr = order.orderDate || order.date || order.createdAt || '';
   const date = dateStr
@@ -203,6 +241,7 @@ function orderToReceiptPayload(order) {
     city: storeCity,
     orderNumber: order.orderNumber || order._id || '',
     orderType: String(orderType || '').toUpperCase(),
+    specialInstructions: orderSpecial || undefined,
     customerName,
     customerPhone,
     date: date,
