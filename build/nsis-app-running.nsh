@@ -1,3 +1,6 @@
+!include "getProcessInfo.nsh"
+Var pid
+
 !macro customCheckAppRunning
   !insertmacro IS_POWERSHELL_AVAILABLE
   ${GetProcessInfo} 0 $pid $1 $2 $3 $4
