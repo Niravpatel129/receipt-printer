@@ -47,7 +47,8 @@
       "oneClick": true,
       "perMachine": false,
       "allowElevation": true,
-      "include": "build/nsis-app-running.nsh"
+      "include": "build/nsis-app-running.nsh",
+      "buildUniversalInstaller": false
     },
     "publish": {
       "provider": "github",
