@@ -835,8 +835,8 @@ function buildReceipt(printer, data = null) {
   if (headerDateTime) {
     printer.println(headerDateTime);
   }
-  printer.newLine();
   printUnderscoreBanner(printer, d.phoneBannerText);
+  printer.newLine();
   drawDashed(printer);
 
   // --- Order meta (left / right columns) ------------------------------------
