@@ -169,6 +169,34 @@ function isBlankSideToken(t) {
   return u === '-' || u === '–' || u === '—';
 }
 
+function isSizeColonLine(s) {
+  return /^\s*SIZE\s*:/i.test(String(s || '').trim());
+}
+
+function pullSizeValueFromLines(lines) {
+  let sizeInner = null;
+  const out = [];
+  for (const raw of lines) {
+    const s = String(raw || '').trim();
+    const m = /^\s*SIZE\s*:\s*(.+)$/i.exec(s);
+    if (m) {
+      if (!sizeInner) sizeInner = m[1].trim();
+      continue;
+    }
+    out.push(raw);
+  }
+  return { sizeInner, rest: out };
+}
+
+function printBracketSizeLine(printer, trimmed) {
+  if (!trimmed) return;
+  const inBrackets = `[${String(trimmed).toUpperCase()}]`;
+  printer.print(`${' '.repeat(MOD_BLOCK_INDENT)}`);
+  printer.bold(true);
+  printer.println(inBrackets);
+  printer.bold(false);
+}
+
 function flattenModifierValues(key, rawVal) {
   const k = normModKey(key);
   if (Array.isArray(rawVal)) {
@@ -177,7 +205,10 @@ function flattenModifierValues(key, rawVal) {
   const s = String(rawVal || '').trim();
   if (!s || isBlankSideToken(s)) return [];
   if (k === 'FULL' || k === 'LEFT' || k === 'RIGHT') {
-    return s.split(/\s*\/\s*/).map((x) => x.trim()).filter((x) => x && !isBlankSideToken(x));
+    return s
+      .split(/\s*\/\s*/)
+      .map((x) => x.trim())
+      .filter((x) => x && !isBlankSideToken(x) && !isSizeColonLine(x));
   }
   return [s];
 }
@@ -195,6 +226,7 @@ function collectToppingPieces(modifiers) {
     if (isRedundantRegularCheese(key, modifiers[key])) return;
     const sidePrefix = nk === 'LEFT' ? 'L-' : nk === 'RIGHT' ? 'R-' : '';
     for (const seg of flattenModifierValues(key, modifiers[key])) {
+      if (isSizeColonLine(seg)) continue;
       pieces.push(sidePrefix ? `${sidePrefix}${seg}` : seg);
     }
   }
@@ -282,13 +314,7 @@ function printItemModifierSection(printer, item, mergedInstr) {
       const sizeVal = sizeEntry[1];
       const sizeStr = Array.isArray(sizeVal) ? sizeVal.join(' ') : String(sizeVal);
       const trimmed = sizeStr.trim();
-      if (trimmed) {
-        const inBrackets = `[${String(trimmed).toUpperCase()}]`;
-        printer.print(`${' '.repeat(MOD_BLOCK_INDENT)}`);
-        printer.bold(true);
-        printer.println(inBrackets);
-        printer.bold(false);
-      }
+      printBracketSizeLine(printer, trimmed);
     }
 
     const headerOrder = ['CRUST', 'SAUCE'];
@@ -311,6 +337,7 @@ function printItemModifierSection(printer, item, mergedInstr) {
 
     let pieces = collectToppingPieces(m);
     pieces = applyBeefAnchovySwap(mergedInstr, pieces);
+    pieces = pieces.filter((p) => !isSizeColonLine(p));
     if (pieces.length) {
       printModifierRows(printer, 'TOPPINGS', pieces.join(', '), { omitLabel: true });
     }
@@ -337,7 +364,11 @@ function printItemModifierSection(printer, item, mergedInstr) {
 
   const instr = mergedInstr;
   let parts = item.toppings.map((t) => String(t).trim()).filter(Boolean);
+  const pulled = pullSizeValueFromLines(parts);
+  parts = pulled.rest;
+  printBracketSizeLine(printer, pulled.sizeInner);
   parts = applyBeefAnchovySwap(instr, parts);
+  parts = parts.filter((p) => !isSizeColonLine(p));
   if (instr) {
     printModifierRows(printer, 'SPECIAL', instr);
   }
