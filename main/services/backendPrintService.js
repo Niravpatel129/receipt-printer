@@ -131,6 +131,18 @@ function toCurrency(value) {
   return `$ ${n.toFixed(2)}`;
 }
 
+function lineItemOptionsOrToppingsFromReceipt(rit, raw) {
+  if (rit && typeof rit === 'object') {
+    if (Array.isArray(rit.options) && rit.options.length) return rit.options;
+    if (Array.isArray(rit.toppings) && rit.toppings.length) return rit.toppings;
+  }
+  if (raw && typeof raw === 'object') {
+    if (Array.isArray(raw.options) && raw.options.length) return raw.options;
+    if (Array.isArray(raw.toppings) && raw.toppings.length) return raw.toppings;
+  }
+  return undefined;
+}
+
 function orderToReceiptPayload(order) {
   const subtotal = toCurrency(order.subtotal);
   const tax = toCurrency(order.tax);
@@ -185,6 +197,7 @@ function orderToReceiptPayload(order) {
           .find(Boolean) || undefined,
         specialInstructions: lineSi || undefined,
         orderSpecialInstructions: orderSpecialFromRoot || undefined,
+        toppings: lineItemOptionsOrToppingsFromReceipt(rit, raw),
       };
     });
     return {
@@ -218,7 +231,11 @@ function orderToReceiptPayload(order) {
     num: String(i + 1).padStart(2, '0'),
     name: (it.name || it.title || '').toUpperCase(),
     amount:
-      typeof it.price !== 'undefined' ? String(Number(it.price).toFixed(2)) : it.amount || '0.00',
+      typeof it.price !== 'undefined'
+        ? String(Number(it.price).toFixed(2))
+        : it.unitAmount != null && Number.isFinite(Number(it.unitAmount))
+          ? String((Number(it.unitAmount) / 100).toFixed(2))
+          : it.amount || '0.00',
     modifiers: it.modifiers || undefined,
     size: it.size != null ? String(it.size).trim() || undefined : undefined,
     toppings: it.options || it.toppings || undefined,

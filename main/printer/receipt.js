@@ -663,6 +663,13 @@ function printItemModifierSection(printer, item, mergedInstr) {
     if (!pieces.length) {
       pieces = collectToppingPiecesFromAggregateBags(m);
     }
+    if (!pieces.length) {
+      pieces = dedupeOrderedToppingPieces(
+        asStringArray(item.toppings || item.options)
+          .map((p) => String(p).trim())
+          .filter((p) => p && !isSizeColonLine(p)),
+      );
+    }
     pieces = applyBeefAnchovySwap(mergedInstr, pieces);
     pieces = pieces.filter((p) => !isSizeColonLine(p));
     if (pieces.length) {
