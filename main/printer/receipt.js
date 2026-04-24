@@ -26,6 +26,7 @@ function printUnderscoreBanner(printer, text) {
   printer.bold(true);
   printer.println(t);
   printer.bold(false);
+  printer.newLine();
   drawDashed(printer);
 }
 
