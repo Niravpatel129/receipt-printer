@@ -22,6 +22,7 @@ function printUnderscoreBanner(printer, text) {
   if (!t) return;
   printer.newLine();
   drawUnderscore(printer);
+  printer.newLine();
   printer.bold(true);
   printer.println(t);
   printer.bold(false);
