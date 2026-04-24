@@ -850,7 +850,7 @@ function buildReceipt(printer, data = null) {
   printer.leftRight('ORDER ID', typeShort ? `#${d.orderNumber}` : `#${d.orderNumber}`);
   printer.leftRight('TYPE', d.orderType || '—');
   if (orderTypeShortCode(d.orderType) === 'DL' && d.customerAddressLine) {
-    printer.println(d.customerAddressLine);
+    printer.leftRight('DEL ADDRESS', d.customerAddressLine);
   }
   printer.bold(true);
   printer.leftRight('CUSTOMER', d.customerName);
