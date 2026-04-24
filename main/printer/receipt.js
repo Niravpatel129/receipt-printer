@@ -22,11 +22,9 @@ function printUnderscoreBanner(printer, text) {
   if (!t) return;
   printer.newLine();
   drawUnderscore(printer);
-  printer.newLine();
   printer.bold(true);
   printer.println(t);
   printer.bold(false);
-  printer.newLine();
   drawUnderscore(printer);
 }
 
@@ -307,6 +305,19 @@ function orderTypeShortCode(orderType) {
   if (t.includes('DELIV')) return 'DL';
   if (t.includes('DINE')) return 'DI';
   return '';
+}
+
+function orderTypePhoneBannerText(orderType) {
+  const t = String(orderType || '').toUpperCase();
+  if (!t.trim()) return DEFAULT_RECEIPT.phoneBannerText;
+  if (t.includes('PICK')) return 'PICK UP';
+  if (t.includes('DELIV')) return 'DELIVERY';
+  if (t.includes('DINE')) return 'DINE IN';
+  return String(orderType || '')
+    .trim()
+    .replace(/[-_]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .toUpperCase();
 }
 
 // Drop “regular cheese” noise so it does not clutter the topping list.
@@ -765,12 +776,13 @@ function buildReceipt(printer, data = null) {
       ? { ...DEFAULT_RECEIPT, ...source }
       : { ...DEFAULT_RECEIPT };
   const normalizedItems = (merged.items || []).map(normalizeItem);
+  const effectiveOrderType = merged.orderType || 'DELIVERY';
   // `d` is the single object used for the whole print run (defaults filled in).
   const d = {
     ...merged,
     storeAddress: merged.storeAddress || merged.address || DEFAULT_RECEIPT.storeAddress,
     storeCity: merged.storeCity || merged.city || DEFAULT_RECEIPT.storeCity,
-    orderType: merged.orderType || 'DELIVERY',
+    orderType: effectiveOrderType,
     time: merged.time || '7:14 PM',
     customerName: merged.customerName || 'VALUED CUSTOMER',
     customerPhone: merged.customerPhone || '000-000-0000',
@@ -791,9 +803,7 @@ function buildReceipt(printer, data = null) {
     rewardNudge: fromSource(source, 'rewardNudge', ''),
     rewardCode: fromSource(source, 'rewardCode', ''),
     specialInstructions: String(merged.specialInstructions || '').trim(),
-    phoneBannerText:
-      merged.phoneBannerText ??
-      fromSource(source, 'phoneBannerText', DEFAULT_RECEIPT.phoneBannerText),
+    phoneBannerText: orderTypePhoneBannerText(effectiveOrderType),
     items: normalizedItems,
   };
 
