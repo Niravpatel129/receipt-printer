@@ -602,6 +602,9 @@ function printItemModifierSection(printer, item, mergedInstr) {
       const sizeStr = Array.isArray(sizeVal) ? sizeVal.join(' ') : String(sizeVal);
       const trimmed = sizeStr.trim();
       printBracketSizeLine(printer, trimmed);
+    } else {
+      const fromField = String(item.size || '').trim();
+      if (fromField) printBracketSizeLine(printer, fromField);
     }
 
     // Crust / sauce (aliases like BASE, selectedCrust); value line always ends with CRUST / SAUCE.
@@ -659,7 +662,8 @@ function printItemModifierSection(printer, item, mergedInstr) {
   let parts = item.toppings.map((t) => String(t).trim()).filter(Boolean);
   const pulled = pullSizeValueFromLines(parts);
   parts = pulled.rest;
-  printBracketSizeLine(printer, pulled.sizeInner);
+  const bracketSize = String(item.size || '').trim() || pulled.sizeInner;
+  printBracketSizeLine(printer, bracketSize);
   parts = applyBeefAnchovySwap(instr, parts);
   parts = parts.filter((p) => !isSizeColonLine(p));
   if (instr) {
@@ -735,6 +739,7 @@ function normalizeItem(item, index) {
     item.specialInstructions || item.specialInstruction || item.instructions || '',
   ).trim();
   const orderSpecialInstructions = String(item.orderSpecialInstructions || '').trim();
+  const size = item.size != null ? String(item.size).trim() : '';
   return {
     ...item,
     qty: String(qty),
@@ -743,6 +748,7 @@ function normalizeItem(item, index) {
     amount: String(amount),
     modifiers: groupedModifiers || undefined,
     toppings: toppings.length ? toppings : undefined,
+    size: size || undefined,
     specialInstructions: specialInstructions || undefined,
     orderSpecialInstructions: orderSpecialInstructions || undefined,
   };

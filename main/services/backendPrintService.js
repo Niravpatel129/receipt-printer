@@ -180,6 +180,9 @@ function orderToReceiptPayload(order) {
         '';
       return {
         ...rit,
+        size: [rit.size, raw.size]
+          .map((s) => (s != null ? String(s).trim() : ''))
+          .find(Boolean) || undefined,
         specialInstructions: lineSi || undefined,
         orderSpecialInstructions: orderSpecialFromRoot || undefined,
       };
@@ -217,6 +220,7 @@ function orderToReceiptPayload(order) {
     amount:
       typeof it.price !== 'undefined' ? String(Number(it.price).toFixed(2)) : it.amount || '0.00',
     modifiers: it.modifiers || undefined,
+    size: it.size != null ? String(it.size).trim() || undefined : undefined,
     toppings: it.options || it.toppings || undefined,
     specialInstructions:
       it.specialInstructions ||
