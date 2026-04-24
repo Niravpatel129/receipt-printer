@@ -520,6 +520,25 @@ function collectToppingPieces(modifiers) {
   return dedupeOrderedToppingPieces(pieces);
 }
 
+function collectToppingPiecesFromAggregateBags(modifiers) {
+  if (!modifiers || typeof modifiers !== 'object') return [];
+  const pieces = [];
+  for (const key of Object.keys(modifiers)) {
+    if (!MOD_AGGREGATE_TOPPING_BAG_KEYS.has(normModKey(key))) continue;
+    for (const seg of flattenModifierValues(key, modifiers[key])) {
+      if (isSizeColonLine(seg)) continue;
+      const cleaned = stripColonPrefixedLabels(String(seg));
+      const t = String(cleaned || '').trim();
+      if (!t) continue;
+      for (const part of t.split(',')) {
+        const p = stripColonPrefixedLabels(part.trim()).trim();
+        if (p && !isSizeColonLine(p)) pieces.push(p);
+      }
+    }
+  }
+  return dedupeOrderedToppingPieces(pieces);
+}
+
 // Modifier label column: pad left so labels align (CRUST, SAUCE, …).
 function rightAlignInColumn(text, width) {
   const s = String(text);
@@ -641,6 +660,9 @@ function printItemModifierSection(printer, item, mergedInstr) {
 
     // Comma-separated toppings; SIZE: text stripped (size already [BRACKET]).
     let pieces = collectToppingPieces(m);
+    if (!pieces.length) {
+      pieces = collectToppingPiecesFromAggregateBags(m);
+    }
     pieces = applyBeefAnchovySwap(mergedInstr, pieces);
     pieces = pieces.filter((p) => !isSizeColonLine(p));
     if (pieces.length) {
