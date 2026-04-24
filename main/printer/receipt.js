@@ -897,7 +897,9 @@ function buildReceipt(printer, data = null) {
   printer.bold(false);
   drawDashed(printer);
 
-  printer.leftRight(`CARD #: **** **** **** ${d.cardLastFour}`, '');
+  if (d.cardLastFour) {
+    printer.leftRight(`CARD #: **** **** **** ${d.cardLastFour}`, '');
+  }
   if (d.authCode) {
     printer.leftRight(`AUTH #: ${d.authCode}`, '');
   }
