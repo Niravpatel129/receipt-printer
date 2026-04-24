@@ -21,12 +21,12 @@ function printUnderscoreBanner(printer, text) {
   const t = String(text || '').trim();
   if (!t) return;
   printer.newLine();
-  drawUnderscore(printer);
+  drawDashed(printer);
   printer.newLine();
   printer.bold(true);
   printer.println(t);
   printer.bold(false);
-  drawUnderscore(printer);
+  drawDashed(printer);
 }
 
 function formatHeaderDateTime(date, time) {
@@ -838,7 +838,6 @@ function buildReceipt(printer, data = null) {
   }
   printUnderscoreBanner(printer, d.phoneBannerText);
   printer.newLine();
-  drawDashed(printer);
 
   // --- Order meta (left / right columns) ------------------------------------
   printer.alignLeft();
