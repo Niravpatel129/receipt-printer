@@ -151,6 +151,20 @@ const MOD_LABELS_COLON_STRIP = [
   'TOPPING',
 ].sort((a, b) => b.length - a.length);
 
+// “Full …” / “FULL: …” / “WHOLE …” at start of a segment (POS often omits colon).
+function stripFullWholePrefixes(s) {
+  let t = String(s || '').trim();
+  let prev;
+  do {
+    prev = t;
+    t = t
+      .replace(/^\s*(?:FULL|WHOLE)\s*:\s*/i, '')
+      .replace(/^\s*(?:FULL|WHOLE)\b\s+/i, '')
+      .trim();
+  } while (t !== prev);
+  return t;
+}
+
 function stripColonPrefixedLabels(text) {
   let s = String(text || '').trim();
   let prev;
@@ -161,7 +175,7 @@ function stripColonPrefixedLabels(text) {
       s = s.replace(re, '').trim();
     }
   } while (s !== prev);
-  return s;
+  return stripFullWholePrefixes(s);
 }
 
 function stripColonPrefixedLabelsFromCommaLine(text) {
@@ -295,22 +309,18 @@ function flattenModifierValues(key, rawVal) {
 function stripToppingSegmentForModifierKey(modKey, seg) {
   let s = String(seg || '').trim();
   const nk = normModKey(modKey);
-  const stripFullWhole = () => {
-    s = s.replace(/^\s*FULL\s*:\s*/i, '').replace(/^\s*WHOLE\s*:\s*/i, '').trim();
-  };
   if (nk === 'FULL' || nk === 'WHOLE') {
-    stripFullWhole();
-    return s;
+    return stripFullWholePrefixes(s);
   }
   if (nk === 'LEFT') {
-    stripFullWhole();
-    s = s.replace(/^\s*LEFT\s*:\s*/i, '').trim();
-    return s;
+    let t = stripFullWholePrefixes(s);
+    t = t.replace(/^\s*LEFT\s*:\s*/i, '').replace(/^\s*LEFT\b\s+/i, '').trim();
+    return t;
   }
   if (nk === 'RIGHT') {
-    stripFullWhole();
-    s = s.replace(/^\s*RIGHT\s*:\s*/i, '').trim();
-    return s;
+    let t = stripFullWholePrefixes(s);
+    t = t.replace(/^\s*RIGHT\s*:\s*/i, '').replace(/^\s*RIGHT\b\s+/i, '').trim();
+    return t;
   }
   return stripColonPrefixedLabels(s);
 }
@@ -380,6 +390,17 @@ function printModifierRows(printer, key, rawVal, opts = {}) {
     const valueText = stripColonPrefixedLabelsFromCommaLine(rawJoined);
     const valueWidth = RECEIPT_LINE_WIDTH - MOD_BLOCK_INDENT;
     const lines = wordWrap(valueText, valueWidth);
+    for (let i = 0; i < lines.length; i += 1) {
+      printer.println(`${prefix}${lines[i]}`);
+    }
+    return;
+  }
+  const nkRow = normModKey(key);
+  if (nkRow === 'CRUST' || nkRow === 'SAUCE') {
+    const valueText = stripModifierValueForRow(key, rawJoined);
+    const combined = `${valueText} ${formatModifierLabel(key)}`.trim();
+    const valueWidth = RECEIPT_LINE_WIDTH - MOD_BLOCK_INDENT;
+    const lines = wordWrap(combined, valueWidth);
     for (let i = 0; i < lines.length; i += 1) {
       printer.println(`${prefix}${lines[i]}`);
     }
