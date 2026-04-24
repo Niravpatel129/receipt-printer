@@ -188,84 +188,6 @@ function collectToppingPieces(modifiers) {
   return pieces;
 }
 
-function titleCasePhrase(s) {
-  return String(s)
-    .toLowerCase()
-    .replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
-function humanizeModifierKey(key) {
-  return titleCasePhrase(String(key || '').trim().replace(/_/g, ' '));
-}
-
-function narrativeValueString(val) {
-  if (Array.isArray(val)) return val.map((v) => String(v).trim()).filter(Boolean).join(', ');
-  return String(val || '').trim();
-}
-
-function orderedModifierEntries(modifiers) {
-  if (!modifiers || typeof modifiers !== 'object') return [];
-  const m = modifiers;
-  const order = [];
-  const used = new Set();
-  const keyForCanon = (canon) => {
-    const e = Object.entries(m).find(([k]) => normModKey(k) === canon);
-    return e ? e[0] : null;
-  };
-  const take = (canon) => {
-    const k = keyForCanon(canon);
-    if (!k || used.has(k) || m[k] === undefined) return;
-    order.push([k, m[k]]);
-    used.add(k);
-  };
-  take('SIZE');
-  take('CRUST');
-  take('SAUCE');
-  for (const key of Object.keys(m)) {
-    if (used.has(key)) continue;
-    if (MOD_INSTRUCTION_KEYS.has(normModKey(key))) {
-      order.push([key, m[key]]);
-      used.add(key);
-    }
-  }
-  for (const key of Object.keys(m)) {
-    if (used.has(key)) continue;
-    const nk = normModKey(key);
-    if (nk === 'FINISH' || nk === 'INCL' || nk === 'INCL.') continue;
-    order.push([key, m[key]]);
-    used.add(key);
-  }
-  take('FINISH');
-  const inclEntry = Object.entries(m).find(([k]) => {
-    const nk = normModKey(k);
-    return nk === 'INCL' || nk === 'INCL.';
-  });
-  if (inclEntry && !used.has(inclEntry[0])) {
-    order.push(inclEntry);
-    used.add(inclEntry[0]);
-  }
-  return order;
-}
-
-function modifierNarrativeSummary(modifiers) {
-  const parts = [];
-  for (const [key, val] of orderedModifierEntries(modifiers)) {
-    const raw = narrativeValueString(val);
-    if (!raw) continue;
-    parts.push(`${humanizeModifierKey(key)}: ${titleCasePhrase(raw)}`);
-  }
-  return parts.join(', ');
-}
-
-function printWrappedNarrative(printer, text) {
-  const t = String(text || '').trim();
-  if (!t) return;
-  printer.bold(false);
-  for (const line of wordWrap(t, RECEIPT_LINE_WIDTH)) {
-    printer.println(line);
-  }
-}
-
 function printModifierGroupBorder(printer) {
   printer.bold(false);
   printer.println(`${' '.repeat(MOD_BLOCK_INDENT)}${'-'.repeat(Math.max(8, RECEIPT_LINE_WIDTH - MOD_BLOCK_INDENT))}`);
@@ -295,6 +217,73 @@ function printModifierRows(printer, key, rawVal) {
     printer.print(contIndent);
     printer.bold(true);
     printer.println(lines[i]);
+  }
+}
+
+function printItemModifierSection(printer, item, mergedInstr) {
+  if (item.modifiers) {
+    printModifierGroupBorder(printer);
+    const m = item.modifiers;
+    const sizeEntry = Object.entries(m).find(([k]) => normModKey(k) === 'SIZE');
+    if (sizeEntry) {
+      const sizeVal = sizeEntry[1];
+      const sizeStr = Array.isArray(sizeVal) ? sizeVal.join(' ') : String(sizeVal);
+      if (sizeStr.trim()) {
+        printer.setTextDoubleHeight();
+        printer.bold(true);
+        printer.println(`${' '.repeat(MOD_BLOCK_INDENT)}SIZE: ${String(sizeStr).toUpperCase()}`);
+        printer.setTextNormal();
+        printer.bold(false);
+      }
+    }
+
+    const headerOrder = ['CRUST', 'SAUCE'];
+    for (const canon of headerOrder) {
+      const entry = Object.entries(m).find(([k]) => normModKey(k) === canon);
+      if (!entry) continue;
+      const [key, val] = entry;
+      if (val === undefined) continue;
+      printModifierRows(printer, key, val);
+    }
+
+    const instrKeys = Object.keys(m).filter((k) => MOD_INSTRUCTION_KEYS.has(normModKey(k)));
+    for (const key of instrKeys) {
+      printModifierRows(printer, key, m[key]);
+    }
+
+    if (mergedInstr && !instrKeys.length) {
+      printModifierRows(printer, 'SPECIAL', mergedInstr);
+    }
+
+    let pieces = collectToppingPieces(m);
+    pieces = applyBeefAnchovySwap(mergedInstr, pieces);
+    if (pieces.length) {
+      printModifierRows(printer, 'TOPPINGS', pieces.join(', '));
+    }
+
+    const tailOrder = ['FINISH', 'INCL'];
+    for (const canon of tailOrder) {
+      const entry = Object.entries(m).find(([k]) => normModKey(k) === canon);
+      if (!entry) continue;
+      const [key, val] = entry;
+      if (val === undefined) continue;
+      printModifierRows(printer, key, val);
+    }
+    printer.bold(false);
+    return;
+  }
+
+  if (!item.toppings || !item.toppings.length) return;
+
+  const instr = mergedInstr;
+  let parts = item.toppings.map((t) => String(t).trim()).filter(Boolean);
+  parts = applyBeefAnchovySwap(instr, parts);
+  if (instr) {
+    printModifierRows(printer, 'SPECIAL', instr);
+  }
+  const oneLine = parts.join(', ');
+  if (oneLine) {
+    printModifierRows(printer, 'TOPPINGS', oneLine);
   }
 }
 
@@ -443,74 +432,7 @@ function buildReceipt(printer, data = null) {
     printer.bold(false);
 
     const mergedInstr = instructionTextForItem(item, d.specialInstructions);
-
-    if (item.modifiers) {
-      printModifierGroupBorder(printer);
-      const m = item.modifiers;
-      const sizeEntry = Object.entries(m).find(([k]) => normModKey(k) === 'SIZE');
-      if (sizeEntry) {
-        const sizeVal = sizeEntry[1];
-        const sizeStr = Array.isArray(sizeVal) ? sizeVal.join(' ') : String(sizeVal);
-        if (sizeStr.trim()) {
-          printer.setTextDoubleHeight();
-          printer.bold(true);
-          printer.println(`${' '.repeat(MOD_BLOCK_INDENT)}SIZE: ${String(sizeStr).toUpperCase()}`);
-          printer.setTextNormal();
-          printer.bold(false);
-        }
-      }
-
-      const headerOrder = ['CRUST', 'SAUCE'];
-      for (const canon of headerOrder) {
-        const entry = Object.entries(m).find(([k]) => normModKey(k) === canon);
-        if (!entry) continue;
-        const [key, val] = entry;
-        if (val === undefined) continue;
-        printModifierRows(printer, key, val);
-      }
-
-      const instrKeys = Object.keys(m).filter((k) => MOD_INSTRUCTION_KEYS.has(normModKey(k)));
-      for (const key of instrKeys) {
-        printModifierRows(printer, key, m[key]);
-      }
-
-      if (mergedInstr && !instrKeys.length) {
-        printModifierRows(printer, 'SPECIAL', mergedInstr);
-      }
-
-      let pieces = collectToppingPieces(m);
-      pieces = applyBeefAnchovySwap(mergedInstr, pieces);
-      if (pieces.length) {
-        const oneLine = pieces.join(', ');
-        printModifierRows(printer, 'TOPPINGS', oneLine);
-      }
-
-      const tailOrder = ['FINISH', 'INCL'];
-      for (const canon of tailOrder) {
-        const entry = Object.entries(m).find(([k]) => normModKey(k) === canon);
-        if (!entry) continue;
-        const [key, val] = entry;
-        if (val === undefined) continue;
-        printModifierRows(printer, key, val);
-      }
-      printWrappedNarrative(printer, modifierNarrativeSummary(m));
-      printer.bold(false);
-    } else if (item.toppings) {
-      const instr = mergedInstr;
-      let parts = item.toppings.map((t) => String(t).trim()).filter(Boolean);
-      parts = applyBeefAnchovySwap(instr, parts);
-      if (instr) {
-        printModifierRows(printer, 'SPECIAL', instr);
-      }
-      const oneLine = parts.join(', ');
-      if (oneLine) {
-        printModifierRows(printer, 'TOPPINGS', oneLine);
-      }
-      const toppingsNarrative = parts.map((p) => titleCasePhrase(p)).join(', ');
-      if (toppingsNarrative) {
-        printWrappedNarrative(printer, `Toppings: ${toppingsNarrative}`);
-      }
-    }
+    printItemModifierSection(printer, item, mergedInstr);
 
     printer.newLine();
   }
