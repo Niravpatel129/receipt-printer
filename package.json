@@ -1,6 +1,6 @@
 {
   "name": "electron-hello",
-  "version": "1.0.85",
+  "version": "1.0.86",
   "main": "main/index.js",
   "scripts": {
     "build": "vite build",
