@@ -128,6 +128,62 @@ function formatModifierLabel(key) {
   return k === 'INCL' ? 'INCL.' : k;
 }
 
+function escapeRegExp(s) {
+  return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// POS often sends "CRUST: REGULAR" in the value; strip so the label column + value reads CRUST | REGULAR.
+const MOD_LABELS_COLON_STRIP = [
+  'SPECIAL INSTRUCTIONS',
+  ...Array.from(MOD_INSTRUCTION_KEYS),
+  'INCL.',
+  'INCL',
+  'FINISH',
+  'SAUCE',
+  'CRUST',
+  'SIZE',
+  'WHOLE',
+  'FULL',
+  'LEFT',
+  'RIGHT',
+  'CHEESE',
+  'TOPPINGS',
+  'TOPPING',
+].sort((a, b) => b.length - a.length);
+
+function stripColonPrefixedLabels(text) {
+  let s = String(text || '').trim();
+  let prev;
+  do {
+    prev = s;
+    for (const lab of MOD_LABELS_COLON_STRIP) {
+      const re = new RegExp(`^${escapeRegExp(lab)}\\s*:\\s*`, 'i');
+      s = s.replace(re, '').trim();
+    }
+  } while (s !== prev);
+  return s;
+}
+
+function stripColonPrefixedLabelsFromCommaLine(text) {
+  return text
+    .split(',')
+    .map((p) => stripColonPrefixedLabels(p.trim()))
+    .filter(Boolean)
+    .join(', ');
+}
+
+function stripModifierValueForRow(modKey, rawText) {
+  let s = String(rawText || '').trim();
+  const nk = normModKey(modKey);
+  const labels = new Set([nk, formatModifierLabel(modKey)]);
+  for (const lab of labels) {
+    if (!lab) continue;
+    const re = new RegExp(`^${escapeRegExp(lab)}\\s*:\\s*`, 'i');
+    s = s.replace(re, '').trim();
+  }
+  return stripColonPrefixedLabels(s);
+}
+
 // Shown next to order # on the receipt (PU / DL / DI).
 function orderTypeShortCode(orderType) {
   const t = String(orderType || '').toUpperCase();
@@ -226,13 +282,48 @@ function flattenModifierValues(key, rawVal) {
   }
   const s = String(rawVal || '').trim();
   if (!s || isBlankSideToken(s)) return [];
-  if (k === 'FULL' || k === 'LEFT' || k === 'RIGHT') {
+  if (k === 'FULL' || k === 'WHOLE' || k === 'LEFT' || k === 'RIGHT') {
     return s
       .split(/\s*\/\s*/)
       .map((x) => x.trim())
       .filter((x) => x && !isBlankSideToken(x) && !isSizeColonLine(x));
   }
   return [s];
+}
+
+// Strip POS “FULL:” / “WHOLE:” on whole pie; “LEFT:”/“RIGHT:” only for that side (avoid stripping wrong side).
+function stripToppingSegmentForModifierKey(modKey, seg) {
+  let s = String(seg || '').trim();
+  const nk = normModKey(modKey);
+  const stripFullWhole = () => {
+    s = s.replace(/^\s*FULL\s*:\s*/i, '').replace(/^\s*WHOLE\s*:\s*/i, '').trim();
+  };
+  if (nk === 'FULL' || nk === 'WHOLE') {
+    stripFullWhole();
+    return s;
+  }
+  if (nk === 'LEFT') {
+    stripFullWhole();
+    s = s.replace(/^\s*LEFT\s*:\s*/i, '').trim();
+    return s;
+  }
+  if (nk === 'RIGHT') {
+    stripFullWhole();
+    s = s.replace(/^\s*RIGHT\s*:\s*/i, '').trim();
+    return s;
+  }
+  return stripColonPrefixedLabels(s);
+}
+
+// L-/R- only when missing; whole pie (FULL/WHOLE) has no prefix.
+function withSidePrefix(sidePrefix, text) {
+  const s = String(text || '').trim();
+  if (!s) return '';
+  if (!sidePrefix) return s;
+  const u = s.toUpperCase();
+  if (sidePrefix === 'L-' && u.startsWith('L-')) return s;
+  if (sidePrefix === 'R-' && u.startsWith('R-')) return s;
+  return `${sidePrefix}${s}`;
 }
 
 // Order: whole pie first, then sides; other keys (e.g. CHEESE) after, unprefixed.
@@ -249,9 +340,15 @@ function collectToppingPieces(modifiers) {
     if (MOD_HEADER_KEYS.has(nk) || MOD_TAIL_KEYS.has(nk) || MOD_INSTRUCTION_KEYS.has(nk)) return;
     if (isRedundantRegularCheese(key, modifiers[key])) return;
     const sidePrefix = nk === 'LEFT' ? 'L-' : nk === 'RIGHT' ? 'R-' : '';
+    const isSideLayout = TOPPING_SIDE_KEYS.includes(nk);
     for (const seg of flattenModifierValues(key, modifiers[key])) {
       if (isSizeColonLine(seg)) continue;
-      pieces.push(sidePrefix ? `${sidePrefix}${seg}` : seg);
+      const cleaned = isSideLayout
+        ? stripToppingSegmentForModifierKey(key, seg)
+        : stripColonPrefixedLabels(String(seg));
+      const t = String(cleaned || '').trim();
+      if (!t) continue;
+      pieces.push(withSidePrefix(sidePrefix, t));
     }
   }
 
@@ -276,10 +373,11 @@ function rightAlignInColumn(text, width) {
 // --- modifier rows on the printer -------------------------------------------
 // Default: [indent][label right 9][gap][value…]. omitLabel: full width value only (toppings).
 function printModifierRows(printer, key, rawVal, opts = {}) {
-  const valueText = Array.isArray(rawVal) ? rawVal.join(' / ') : String(rawVal);
+  const rawJoined = Array.isArray(rawVal) ? rawVal.join(' / ') : String(rawVal);
   const prefix = ' '.repeat(MOD_BLOCK_INDENT);
   printer.bold(false);
   if (opts.omitLabel) {
+    const valueText = stripColonPrefixedLabelsFromCommaLine(rawJoined);
     const valueWidth = RECEIPT_LINE_WIDTH - MOD_BLOCK_INDENT;
     const lines = wordWrap(valueText, valueWidth);
     for (let i = 0; i < lines.length; i += 1) {
@@ -287,6 +385,7 @@ function printModifierRows(printer, key, rawVal, opts = {}) {
     }
     return;
   }
+  const valueText = stripModifierValueForRow(key, rawJoined);
   const labelCol = rightAlignInColumn(formatModifierLabel(key), MOD_LABEL_COL_WIDTH);
   const valueWidth = RECEIPT_LINE_WIDTH - MOD_BLOCK_INDENT - MOD_LABEL_COL_WIDTH - MOD_LABEL_GUTTER;
   const lines = wordWrap(valueText, valueWidth);
@@ -309,8 +408,9 @@ function isInclKey(key) {
 
 // INCL.: label-only row, then “> ” + bold value (wrapped); “>” stays normal weight.
 function printInclHighlight(printer, rawVal, modKey) {
-  const valueText = Array.isArray(rawVal) ? rawVal.join(' / ') : String(rawVal);
-  if (!String(valueText).trim()) return;
+  const rawJoined = Array.isArray(rawVal) ? rawVal.join(' / ') : String(rawVal);
+  if (!String(rawJoined).trim()) return;
+  const valueText = stripModifierValueForRow(modKey, rawJoined);
   const prefix = ' '.repeat(MOD_BLOCK_INDENT);
   const labelCol = rightAlignInColumn(formatModifierLabel(modKey), MOD_LABEL_COL_WIDTH);
   const gap = ' '.repeat(MOD_LABEL_GUTTER);
