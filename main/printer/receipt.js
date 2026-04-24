@@ -469,20 +469,6 @@ const MOD_AGGREGATE_TOPPING_BAG_KEYS = new Set([
   'ITEMTOPPINGS',
 ]);
 
-function dedupeOrderedToppingPieces(pieces) {
-  const seen = new Set();
-  const out = [];
-  for (const p of pieces) {
-    const raw = String(p || '').trim();
-    if (!raw) continue;
-    const sig = raw.toUpperCase();
-    if (seen.has(sig)) continue;
-    seen.add(sig);
-    out.push(raw);
-  }
-  return out;
-}
-
 function collectToppingPieces(modifiers) {
   if (!modifiers || typeof modifiers !== 'object') return [];
   const pieces = [];
@@ -517,7 +503,7 @@ function collectToppingPieces(modifiers) {
     if (TOPPING_SIDE_KEYS.includes(normModKey(key))) continue;
     pushFromKey(key);
   }
-  return dedupeOrderedToppingPieces(pieces);
+  return pieces;
 }
 
 function collectToppingPiecesFromAggregateBags(modifiers) {
@@ -536,7 +522,7 @@ function collectToppingPiecesFromAggregateBags(modifiers) {
       }
     }
   }
-  return dedupeOrderedToppingPieces(pieces);
+  return pieces;
 }
 
 // Modifier label column: pad left so labels align (CRUST, SAUCE, …).
@@ -664,11 +650,9 @@ function printItemModifierSection(printer, item, mergedInstr) {
       pieces = collectToppingPiecesFromAggregateBags(m);
     }
     if (!pieces.length) {
-      pieces = dedupeOrderedToppingPieces(
-        asStringArray(item.toppings || item.options)
-          .map((p) => String(p).trim())
-          .filter((p) => p && !isSizeColonLine(p)),
-      );
+      pieces = asStringArray(item.toppings || item.options)
+        .map((p) => String(p).trim())
+        .filter((p) => p && !isSizeColonLine(p));
     }
     pieces = applyBeefAnchovySwap(mergedInstr, pieces);
     pieces = pieces.filter((p) => !isSizeColonLine(p));
