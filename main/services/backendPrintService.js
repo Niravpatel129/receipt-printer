@@ -217,7 +217,7 @@ function orderToReceiptPayload(order) {
     amount:
       typeof it.price !== 'undefined' ? String(Number(it.price).toFixed(2)) : it.amount || '0.00',
     modifiers: it.modifiers || undefined,
-    toppings: it.toppings || it.optionsDisplay || it.options || undefined,
+    toppings: it.options || it.toppings || undefined,
     specialInstructions:
       it.specialInstructions ||
       it.specialInstruction ||

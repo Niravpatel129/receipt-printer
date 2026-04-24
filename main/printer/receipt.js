@@ -13,6 +13,33 @@ function drawSolid(printer) {
   printer.drawLine('=');
 }
 
+function drawUnderscore(printer) {
+  printer.drawLine('_');
+}
+
+function printUnderscoreBanner(printer, text) {
+  const t = String(text || '').trim();
+  if (!t) return;
+  printer.newLine();
+  drawUnderscore(printer);
+  printer.newLine();
+  printer.bold(true);
+  printer.println(t);
+  printer.bold(false);
+  printer.newLine();
+  drawUnderscore(printer);
+}
+
+function formatHeaderDateTime(date, time) {
+  const datePart = String(date || '')
+    .replace(/,/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const timePart = String(time || '').trim();
+  if (datePart && timePart) return `${datePart} | ${timePart}`;
+  return [datePart, timePart].filter(Boolean).join(' | ');
+}
+
 // --- defaults & branding (merged with live payload in buildReceipt) --------
 const WEBSITE = 'PIZZADEPOT.CA';
 const FEEDBACK_URL = 'PIZZADEPOT.CA/FEEDBACK';
@@ -26,6 +53,7 @@ const DEFAULT_RECEIPT = {
   storeAddress: '4525 EBENEZER RD.',
   storeCity: 'BRAMPTON, ON',
   storePhone: '(905) 204-9711',
+  phoneBannerText: 'PICK UP / DELIVERY',
   orderNumber: 'PD-20847',
   orderType: 'DELIVERY',
   date: 'MAR 23, 2026',
@@ -388,12 +416,18 @@ function stripToppingSegmentForModifierKey(modKey, seg) {
   }
   if (nk === 'LEFT') {
     let t = stripFullWholePrefixes(s);
-    t = t.replace(/^\s*LEFT\s*:\s*/i, '').replace(/^\s*LEFT\b\s+/i, '').trim();
+    t = t
+      .replace(/^\s*LEFT\s*:\s*/i, '')
+      .replace(/^\s*LEFT\b\s+/i, '')
+      .trim();
     return t;
   }
   if (nk === 'RIGHT') {
     let t = stripFullWholePrefixes(s);
-    t = t.replace(/^\s*RIGHT\s*:\s*/i, '').replace(/^\s*RIGHT\b\s+/i, '').trim();
+    t = t
+      .replace(/^\s*RIGHT\s*:\s*/i, '')
+      .replace(/^\s*RIGHT\b\s+/i, '')
+      .trim();
     return t;
   }
   return stripColonPrefixedLabels(s);
@@ -422,7 +456,6 @@ const MOD_AGGREGATE_TOPPING_BAG_KEYS = new Set([
   'EXTRAS',
   'SELECTEDTOPPINGS',
   'ITEMTOPPINGS',
-  'OPTIONSDISPLAY',
 ]);
 
 function dedupeOrderedToppingPieces(pieces) {
@@ -619,7 +652,7 @@ function printItemModifierSection(printer, item, mergedInstr) {
     return;
   }
 
-  // Legacy path: modifiers arrived as string[] → normalizeItem moved them to toppings.
+  // Legacy path: flat options/toppings[] (no structured modifiers object).
   if (!item.toppings || !item.toppings.length) return;
 
   const instr = mergedInstr;
@@ -688,15 +721,16 @@ function fromSource(source, key, fallback = '') {
   return Object.prototype.hasOwnProperty.call(source, key) ? source[key] : fallback;
 }
 
-// Stable qty/name/amount; object modifiers kept, array modifiers become toppings only.
+// Stable qty/name/amount; object modifiers kept; flat list from options[] or toppings[].
 function normalizeItem(item, index) {
   const qty = item.qty || item.num || item.quantity || String(index + 1).padStart(2, '0');
   const name = String(item.name || 'ITEM').toUpperCase();
   const amount = item.amount ?? item.price ?? '0.00';
   const groupedModifiers = normalizeModifierGroups(item.modifiers);
+  const modifierList = Array.isArray(item.modifiers) ? item.modifiers : [];
   const toppings = groupedModifiers
-    ? asStringArray(item.toppings)
-    : asStringArray(item.toppings || item.optionsDisplay || item.options || item.modifiers);
+    ? asStringArray(item.toppings || item.options)
+    : asStringArray(item.options || item.toppings || modifierList);
   const specialInstructions = String(
     item.specialInstructions || item.specialInstruction || item.instructions || '',
   ).trim();
@@ -751,6 +785,9 @@ function buildReceipt(printer, data = null) {
     rewardNudge: fromSource(source, 'rewardNudge', ''),
     rewardCode: fromSource(source, 'rewardCode', ''),
     specialInstructions: String(merged.specialInstructions || '').trim(),
+    phoneBannerText:
+      merged.phoneBannerText ??
+      fromSource(source, 'phoneBannerText', DEFAULT_RECEIPT.phoneBannerText),
     items: normalizedItems,
   };
 
@@ -762,10 +799,14 @@ function buildReceipt(printer, data = null) {
   printer.bold(false);
   printer.setTextNormal();
   printer.println(d.storeAddress);
-  printer.println(d.storeCity);
   if (d.storePhone) {
     printer.println(d.storePhone);
   }
+  const headerDateTime = formatHeaderDateTime(d.date, d.time);
+  if (headerDateTime) {
+    printer.println(headerDateTime);
+  }
+  printUnderscoreBanner(printer, d.phoneBannerText);
   drawDashed(printer);
 
   // --- Order meta (left / right columns) ------------------------------------
@@ -773,15 +814,15 @@ function buildReceipt(printer, data = null) {
   printer.newLine();
   printer.bold(false);
   const typeShort = orderTypeShortCode(d.orderType);
-  printer.leftRight('ORDER ID', typeShort ? `#${d.orderNumber}  ${typeShort}` : `#${d.orderNumber}`);
+  printer.leftRight(
+    'ORDER ID',
+    typeShort ? `#${d.orderNumber}  ${typeShort}` : `#${d.orderNumber}`,
+  );
   printer.leftRight('TYPE', d.orderType || '—');
   printer.bold(true);
   printer.leftRight('CUSTOMER', d.customerName);
   printer.bold(false);
   printer.leftRight('PHONE', d.customerPhone);
-  printer.newLine();
-  printer.leftRight('DATE', d.date);
-  printer.leftRight('TIME', d.time);
   if (d.driver) {
     printer.leftRight('DRIVER', d.driver);
   }
