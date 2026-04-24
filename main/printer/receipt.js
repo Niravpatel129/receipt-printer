@@ -203,8 +203,18 @@ function stripModifierValueForRow(modKey, rawText) {
 // POS keys are not always exactly CRUST / SAUCE; still print “… CRUST” / “… SAUCE” lines.
 function modifierRowSuffixKind(key) {
   const nk = normModKey(key);
-  if (nk === 'CRUST' || nk === 'BASE' || nk === 'CRUSTTYPE' || nk.endsWith('CRUST')) return 'CRUST';
-  if (nk === 'SAUCE' || nk.endsWith('SAUCE')) return 'SAUCE';
+  const ks = String(key || '');
+  if (/crust/i.test(ks) && /sauce/i.test(ks)) return '';
+  if (nk === 'SAUCE' || nk.endsWith('SAUCE') || /\bsauce\b/i.test(ks)) return 'SAUCE';
+  if (
+    nk === 'CRUST' ||
+    nk === 'BASE' ||
+    nk === 'CRUSTTYPE' ||
+    nk.endsWith('CRUST') ||
+    /crust/i.test(ks)
+  ) {
+    return 'CRUST';
+  }
   return '';
 }
 
@@ -226,6 +236,40 @@ function findModifierEntryForPrint(m, exactCanons, suffixKind) {
     if (e) return e;
   }
   return Object.entries(m).find(([k]) => modifierRowSuffixKind(k) === suffixKind);
+}
+
+function findCrustModifierEntry(m) {
+  const direct = findModifierEntryForPrint(m, ['CRUST', 'BASE', 'CRUSTTYPE'], 'CRUST');
+  if (direct) return direct;
+  for (const [k, v] of Object.entries(m)) {
+    const ks = String(k);
+    if (/crust/i.test(ks) && /sauce/i.test(ks)) continue;
+    if (!/crust/i.test(ks)) continue;
+    const vals = asStringArray(v);
+    if (!vals.length) continue;
+    return [k, vals.length === 1 ? vals[0] : vals];
+  }
+  return null;
+}
+
+function findSauceModifierEntry(m) {
+  const direct = findModifierEntryForPrint(m, ['SAUCE'], 'SAUCE');
+  if (direct) return direct;
+  for (const [k, v] of Object.entries(m)) {
+    const ks = String(k);
+    if (/crust/i.test(ks) && /sauce/i.test(ks)) continue;
+    const nk = normModKey(k);
+    if (!/\bsauce\b/i.test(ks) && !nk.endsWith('SAUCE')) continue;
+    const vals = asStringArray(v);
+    if (!vals.length) continue;
+    return [k, vals.length === 1 ? vals[0] : vals];
+  }
+  return null;
+}
+
+function joinModifierValueForPrint(rawVal) {
+  if (rawVal == null || rawVal === '') return '';
+  return asStringArray(rawVal).join(' / ');
 }
 
 // Shown next to order # on the receipt (PU / DL / DI).
@@ -405,6 +449,8 @@ function collectToppingPieces(modifiers) {
     const nk = normModKey(key);
     if (MOD_AGGREGATE_TOPPING_BAG_KEYS.has(nk)) return;
     if (MOD_HEADER_KEYS.has(nk) || MOD_TAIL_KEYS.has(nk) || MOD_INSTRUCTION_KEYS.has(nk)) return;
+    const rowKind = modifierRowSuffixKind(key);
+    if (rowKind === 'CRUST' || rowKind === 'SAUCE') return;
     if (isRedundantRegularCheese(key, modifiers[key])) return;
     const sidePrefix = nk === 'LEFT' ? 'L-' : nk === 'RIGHT' ? 'R-' : '';
     const isSideLayout = TOPPING_SIDE_KEYS.includes(nk);
@@ -440,7 +486,7 @@ function rightAlignInColumn(text, width) {
 // --- modifier rows on the printer -------------------------------------------
 // Default: [indent][label right 9][gap][value…]. omitLabel: full width value only (toppings).
 function printModifierRows(printer, key, rawVal, opts = {}) {
-  const rawJoined = Array.isArray(rawVal) ? rawVal.join(' / ') : String(rawVal);
+  const rawJoined = joinModifierValueForPrint(rawVal);
   const prefix = ' '.repeat(MOD_BLOCK_INDENT);
   printer.bold(false);
   if (opts.omitLabel) {
@@ -525,13 +571,13 @@ function printItemModifierSection(printer, item, mergedInstr) {
       printBracketSizeLine(printer, trimmed);
     }
 
-    // Crust / sauce (aliases like BASE); value line always ends with CRUST / SAUCE.
-    const crustEntry = findModifierEntryForPrint(m, ['CRUST', 'BASE', 'CRUSTTYPE'], 'CRUST');
+    // Crust / sauce (aliases like BASE, selectedCrust); value line always ends with CRUST / SAUCE.
+    const crustEntry = findCrustModifierEntry(m);
     if (crustEntry) {
       const [key, val] = crustEntry;
       if (val !== undefined) printModifierRows(printer, key, val);
     }
-    const sauceEntry = findModifierEntryForPrint(m, ['SAUCE'], 'SAUCE');
+    const sauceEntry = findSauceModifierEntry(m);
     if (sauceEntry) {
       const [key, val] = sauceEntry;
       if (val !== undefined) printModifierRows(printer, key, val);
@@ -610,8 +656,17 @@ function amountValue(value) {
 }
 
 function asStringArray(value) {
-  if (Array.isArray(value)) return value.map((v) => String(v).trim()).filter(Boolean);
   if (value == null) return [];
+  if (Array.isArray(value)) return value.flatMap((v) => asStringArray(v));
+  if (typeof value === 'object') {
+    if (value.value != null && value.value !== '') return asStringArray(value.value);
+    if (typeof value.name === 'string' && value.name.trim()) return [value.name.trim()];
+    if (typeof value.label === 'string' && value.label.trim()) return [value.label.trim()];
+    if (typeof value.displayName === 'string' && value.displayName.trim()) {
+      return [value.displayName.trim()];
+    }
+    return [];
+  }
   const s = String(value).trim();
   return s ? [s] : [];
 }
