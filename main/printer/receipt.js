@@ -835,6 +835,7 @@ function buildReceipt(printer, data = null) {
   if (headerDateTime) {
     printer.println(headerDateTime);
   }
+  printer.newLine();
   printUnderscoreBanner(printer, d.phoneBannerText);
   drawDashed(printer);
 
@@ -843,10 +844,7 @@ function buildReceipt(printer, data = null) {
   printer.newLine();
   printer.bold(false);
   const typeShort = orderTypeShortCode(d.orderType);
-  printer.leftRight(
-    'ORDER ID',
-    typeShort ? `#${d.orderNumber}  ${typeShort}` : `#${d.orderNumber}`,
-  );
+  printer.leftRight('ORDER ID', typeShort ? `#${d.orderNumber}` : `#${d.orderNumber}`);
   printer.leftRight('TYPE', d.orderType || '—');
   printer.bold(true);
   printer.leftRight('CUSTOMER', d.customerName);
@@ -859,7 +857,7 @@ function buildReceipt(printer, data = null) {
     printer.leftRight('ETA', d.eta);
   }
   printer.newLine();
-  drawDashed(printer);
+  // drawDashed(printer);
 
   // --- Line items + modifier blocks ----------------------------------------
   printer.alignLeft();
