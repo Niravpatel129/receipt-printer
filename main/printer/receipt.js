@@ -882,7 +882,7 @@ function buildReceipt(printer, data = null) {
     printer.leftRight('SUBTOTAL', d.subtotal);
   }
   if (d.tax) {
-    printer.leftRight('TAX AND FEES', d.tax);
+    printer.leftRight('TAX & FEES', d.tax);
   }
   if (amountValue(d.delivery) > 0) {
     printer.leftRight('DELIVERY', d.delivery);
