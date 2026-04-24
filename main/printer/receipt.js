@@ -163,34 +163,51 @@ function applyBeefAnchovySwap(instructionText, pieces) {
   return out;
 }
 
+function isBlankSideToken(t) {
+  const u = String(t || '').trim();
+  if (!u) return true;
+  return u === '-' || u === '–' || u === '—';
+}
+
 function flattenModifierValues(key, rawVal) {
   const k = normModKey(key);
   if (Array.isArray(rawVal)) {
-    return rawVal.map((v) => String(v).trim()).filter(Boolean);
+    return rawVal.map((v) => String(v).trim()).filter((v) => v && !isBlankSideToken(v));
   }
   const s = String(rawVal || '').trim();
-  if (!s) return [];
+  if (!s || isBlankSideToken(s)) return [];
   if (k === 'FULL' || k === 'LEFT' || k === 'RIGHT') {
-    return s.split(/\s*\/\s*/).map((x) => x.trim()).filter(Boolean);
+    return s.split(/\s*\/\s*/).map((x) => x.trim()).filter((x) => x && !isBlankSideToken(x));
   }
   return [s];
 }
 
+const TOPPING_SIDE_KEYS = ['FULL', 'WHOLE', 'LEFT', 'RIGHT'];
+
 function collectToppingPieces(modifiers) {
   if (!modifiers || typeof modifiers !== 'object') return [];
   const pieces = [];
-  for (const key of Object.keys(modifiers)) {
+
+  function pushFromKey(key) {
+    if (!Object.prototype.hasOwnProperty.call(modifiers, key)) return;
     const nk = normModKey(key);
-    if (MOD_HEADER_KEYS.has(nk) || MOD_TAIL_KEYS.has(nk) || MOD_INSTRUCTION_KEYS.has(nk)) continue;
-    if (isRedundantRegularCheese(key, modifiers[key])) continue;
-    pieces.push(...flattenModifierValues(key, modifiers[key]));
+    if (MOD_HEADER_KEYS.has(nk) || MOD_TAIL_KEYS.has(nk) || MOD_INSTRUCTION_KEYS.has(nk)) return;
+    if (isRedundantRegularCheese(key, modifiers[key])) return;
+    const sidePrefix = nk === 'LEFT' ? 'L-' : nk === 'RIGHT' ? 'R-' : '';
+    for (const seg of flattenModifierValues(key, modifiers[key])) {
+      pieces.push(sidePrefix ? `${sidePrefix}${seg}` : seg);
+    }
+  }
+
+  for (const canon of TOPPING_SIDE_KEYS) {
+    const hit = Object.keys(modifiers).find((k) => normModKey(k) === canon);
+    if (hit) pushFromKey(hit);
+  }
+  for (const key of Object.keys(modifiers)) {
+    if (TOPPING_SIDE_KEYS.includes(normModKey(key))) continue;
+    pushFromKey(key);
   }
   return pieces;
-}
-
-function printModifierGroupBorder(printer) {
-  printer.bold(false);
-  printer.println(`${' '.repeat(MOD_BLOCK_INDENT)}${'-'.repeat(Math.max(8, RECEIPT_LINE_WIDTH - MOD_BLOCK_INDENT))}`);
 }
 
 function rightAlignInColumn(text, width) {
@@ -199,17 +216,53 @@ function rightAlignInColumn(text, width) {
   return ' '.repeat(width - s.length) + s;
 }
 
-function printModifierRows(printer, key, rawVal) {
-  const labelCol = rightAlignInColumn(formatModifierLabel(key), MOD_LABEL_COL_WIDTH);
+function printModifierRows(printer, key, rawVal, opts = {}) {
   const valueText = Array.isArray(rawVal) ? rawVal.join(' / ') : String(rawVal);
   const prefix = ' '.repeat(MOD_BLOCK_INDENT);
+  printer.bold(false);
+  if (opts.omitLabel) {
+    const valueWidth = RECEIPT_LINE_WIDTH - MOD_BLOCK_INDENT;
+    const lines = wordWrap(valueText, valueWidth);
+    for (let i = 0; i < lines.length; i += 1) {
+      printer.println(`${prefix}${lines[i]}`);
+    }
+    return;
+  }
+  const labelCol = rightAlignInColumn(formatModifierLabel(key), MOD_LABEL_COL_WIDTH);
   const valueWidth = RECEIPT_LINE_WIDTH - MOD_BLOCK_INDENT - MOD_LABEL_COL_WIDTH - MOD_LABEL_GUTTER;
   const lines = wordWrap(valueText, valueWidth);
   const gap = ' '.repeat(MOD_LABEL_GUTTER);
   const contIndent = prefix + ' '.repeat(MOD_LABEL_COL_WIDTH + MOD_LABEL_GUTTER);
 
-  printer.bold(false);
   printer.print(`${prefix}${labelCol}${gap}`);
+  printer.println(lines[0]);
+  for (let i = 1; i < lines.length; i += 1) {
+    printer.print(contIndent);
+    printer.println(lines[i]);
+  }
+}
+
+function isInclKey(key) {
+  const k = normModKey(key).replace(/\./g, '');
+  return k === 'INCL';
+}
+
+function printInclHighlight(printer, rawVal, modKey) {
+  const valueText = Array.isArray(rawVal) ? rawVal.join(' / ') : String(rawVal);
+  if (!String(valueText).trim()) return;
+  const prefix = ' '.repeat(MOD_BLOCK_INDENT);
+  const labelCol = rightAlignInColumn(formatModifierLabel(modKey), MOD_LABEL_COL_WIDTH);
+  const gap = ' '.repeat(MOD_LABEL_GUTTER);
+  printer.bold(false);
+  printer.println(`${prefix}${labelCol}${gap}`);
+
+  const bullet = `${prefix}> `;
+  const valueStartLen = bullet.length;
+  const valueWidth = RECEIPT_LINE_WIDTH - valueStartLen;
+  const lines = wordWrap(valueText, valueWidth);
+  const contIndent = ' '.repeat(valueStartLen);
+
+  printer.print(bullet);
   printer.bold(true);
   printer.println(lines[0]);
   for (let i = 1; i < lines.length; i += 1) {
@@ -218,21 +271,23 @@ function printModifierRows(printer, key, rawVal) {
     printer.bold(true);
     printer.println(lines[i]);
   }
+  printer.bold(false);
 }
 
 function printItemModifierSection(printer, item, mergedInstr) {
   if (item.modifiers) {
-    printModifierGroupBorder(printer);
     const m = item.modifiers;
     const sizeEntry = Object.entries(m).find(([k]) => normModKey(k) === 'SIZE');
     if (sizeEntry) {
       const sizeVal = sizeEntry[1];
       const sizeStr = Array.isArray(sizeVal) ? sizeVal.join(' ') : String(sizeVal);
-      if (sizeStr.trim()) {
-        printer.setTextDoubleHeight();
+      const trimmed = sizeStr.trim();
+      if (trimmed) {
+        const inBrackets = `[${String(trimmed).toUpperCase()}]`;
+        printer.bold(false);
+        printer.print(`${' '.repeat(MOD_BLOCK_INDENT)}`);
         printer.bold(true);
-        printer.println(`${' '.repeat(MOD_BLOCK_INDENT)}SIZE: ${String(sizeStr).toUpperCase()}`);
-        printer.setTextNormal();
+        printer.println(inBrackets);
         printer.bold(false);
       }
     }
@@ -258,16 +313,22 @@ function printItemModifierSection(printer, item, mergedInstr) {
     let pieces = collectToppingPieces(m);
     pieces = applyBeefAnchovySwap(mergedInstr, pieces);
     if (pieces.length) {
-      printModifierRows(printer, 'TOPPINGS', pieces.join(', '));
+      printModifierRows(printer, 'TOPPINGS', pieces.join(', '), { omitLabel: true });
     }
 
     const tailOrder = ['FINISH', 'INCL'];
     for (const canon of tailOrder) {
-      const entry = Object.entries(m).find(([k]) => normModKey(k) === canon);
+      const entry = Object.entries(m).find(([k]) =>
+        canon === 'INCL' ? isInclKey(k) : normModKey(k) === canon,
+      );
       if (!entry) continue;
       const [key, val] = entry;
       if (val === undefined) continue;
-      printModifierRows(printer, key, val);
+      if (isInclKey(key)) {
+        printInclHighlight(printer, val, key);
+      } else {
+        printModifierRows(printer, key, val);
+      }
     }
     printer.bold(false);
     return;
@@ -283,7 +344,7 @@ function printItemModifierSection(printer, item, mergedInstr) {
   }
   const oneLine = parts.join(', ');
   if (oneLine) {
-    printModifierRows(printer, 'TOPPINGS', oneLine);
+    printModifierRows(printer, 'TOPPINGS', oneLine, { omitLabel: true });
   }
 }
 
@@ -427,9 +488,8 @@ function buildReceipt(printer, data = null) {
   printer.alignLeft();
 
   for (const item of d.items) {
-    printer.bold(true);
-    printer.leftRight(`${item.qty}  ${item.name}`, `$${item.amount}`);
     printer.bold(false);
+    printer.leftRight(`${item.qty}  ${item.name}`, `$${item.amount}`);
 
     const mergedInstr = instructionTextForItem(item, d.specialInstructions);
     printItemModifierSection(printer, item, mergedInstr);
