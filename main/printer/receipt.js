@@ -102,7 +102,7 @@ const MOD_LABEL_COL_WIDTH = 9;
 const MOD_LABEL_GUTTER = 1;
 
 // Which modifier keys are handled outside the “topping comma list” pipeline.
-const MOD_HEADER_KEYS = new Set(['SIZE', 'CRUST', 'SAUCE']);
+const MOD_HEADER_KEYS = new Set(['SIZE', 'CRUST', 'SAUCE', 'BASE', 'CRUSTTYPE']);
 const MOD_TAIL_KEYS = new Set(['FINISH', 'INCL', 'INCL.']);
 const MOD_INSTRUCTION_KEYS = new Set([
   'SPECIAL INSTRUCTIONS',
@@ -141,6 +141,8 @@ const MOD_LABELS_COLON_STRIP = [
   'FINISH',
   'SAUCE',
   'CRUST',
+  'CRUSTTYPE',
+  'BASE',
   'SIZE',
   'WHOLE',
   'FULL',
@@ -196,6 +198,34 @@ function stripModifierValueForRow(modKey, rawText) {
     s = s.replace(re, '').trim();
   }
   return stripColonPrefixedLabels(s);
+}
+
+// POS keys are not always exactly CRUST / SAUCE; still print “… CRUST” / “… SAUCE” lines.
+function modifierRowSuffixKind(key) {
+  const nk = normModKey(key);
+  if (nk === 'CRUST' || nk === 'BASE' || nk === 'CRUSTTYPE' || nk.endsWith('CRUST')) return 'CRUST';
+  if (nk === 'SAUCE' || nk.endsWith('SAUCE')) return 'SAUCE';
+  return '';
+}
+
+function ensureTrailingKindSuffix(valueText, suffixWord) {
+  const s = String(valueText || '')
+    .trim()
+    .replace(/,\s*$/, '');
+  const suf = String(suffixWord || '').trim();
+  if (!suf) return s;
+  if (!s) return suf;
+  const re = new RegExp(`\\b${escapeRegExp(suf)}\\b`, 'i');
+  if (re.test(s)) return s;
+  return `${s} ${suf}`.trim();
+}
+
+function findModifierEntryForPrint(m, exactCanons, suffixKind) {
+  for (const canon of exactCanons) {
+    const e = Object.entries(m).find(([k]) => normModKey(k) === canon);
+    if (e) return e;
+  }
+  return Object.entries(m).find(([k]) => modifierRowSuffixKind(k) === suffixKind);
 }
 
 // Shown next to order # on the receipt (PU / DL / DI).
@@ -339,6 +369,32 @@ function withSidePrefix(sidePrefix, text) {
 // Order: whole pie first, then sides; other keys (e.g. CHEESE) after, unprefixed.
 const TOPPING_SIDE_KEYS = ['FULL', 'WHOLE', 'LEFT', 'RIGHT'];
 
+// Same list often appears again under TOPPINGS/OPTIONS after FULL — skip to avoid printing twice.
+const MOD_AGGREGATE_TOPPING_BAG_KEYS = new Set([
+  'TOPPINGS',
+  'TOPPING',
+  'OPTIONS',
+  'OPTION',
+  'EXTRAS',
+  'SELECTEDTOPPINGS',
+  'ITEMTOPPINGS',
+  'OPTIONSDISPLAY',
+]);
+
+function dedupeOrderedToppingPieces(pieces) {
+  const seen = new Set();
+  const out = [];
+  for (const p of pieces) {
+    const raw = String(p || '').trim();
+    if (!raw) continue;
+    const sig = raw.toUpperCase();
+    if (seen.has(sig)) continue;
+    seen.add(sig);
+    out.push(raw);
+  }
+  return out;
+}
+
 function collectToppingPieces(modifiers) {
   if (!modifiers || typeof modifiers !== 'object') return [];
   const pieces = [];
@@ -347,6 +403,7 @@ function collectToppingPieces(modifiers) {
   function pushFromKey(key) {
     if (!Object.prototype.hasOwnProperty.call(modifiers, key)) return;
     const nk = normModKey(key);
+    if (MOD_AGGREGATE_TOPPING_BAG_KEYS.has(nk)) return;
     if (MOD_HEADER_KEYS.has(nk) || MOD_TAIL_KEYS.has(nk) || MOD_INSTRUCTION_KEYS.has(nk)) return;
     if (isRedundantRegularCheese(key, modifiers[key])) return;
     const sidePrefix = nk === 'LEFT' ? 'L-' : nk === 'RIGHT' ? 'R-' : '';
@@ -370,7 +427,7 @@ function collectToppingPieces(modifiers) {
     if (TOPPING_SIDE_KEYS.includes(normModKey(key))) continue;
     pushFromKey(key);
   }
-  return pieces;
+  return dedupeOrderedToppingPieces(pieces);
 }
 
 // Modifier label column: pad left so labels align (CRUST, SAUCE, …).
@@ -395,10 +452,10 @@ function printModifierRows(printer, key, rawVal, opts = {}) {
     }
     return;
   }
-  const nkRow = normModKey(key);
-  if (nkRow === 'CRUST' || nkRow === 'SAUCE') {
+  const rowSuffix = modifierRowSuffixKind(key);
+  if (rowSuffix) {
     const valueText = stripModifierValueForRow(key, rawJoined);
-    const combined = `${valueText} ${formatModifierLabel(key)}`.trim();
+    const combined = ensureTrailingKindSuffix(valueText, rowSuffix);
     const valueWidth = RECEIPT_LINE_WIDTH - MOD_BLOCK_INDENT;
     const lines = wordWrap(combined, valueWidth);
     for (let i = 0; i < lines.length; i += 1) {
@@ -468,14 +525,16 @@ function printItemModifierSection(printer, item, mergedInstr) {
       printBracketSizeLine(printer, trimmed);
     }
 
-    // Label + value rows (not bold except size line above).
-    const headerOrder = ['CRUST', 'SAUCE'];
-    for (const canon of headerOrder) {
-      const entry = Object.entries(m).find(([k]) => normModKey(k) === canon);
-      if (!entry) continue;
-      const [key, val] = entry;
-      if (val === undefined) continue;
-      printModifierRows(printer, key, val);
+    // Crust / sauce (aliases like BASE); value line always ends with CRUST / SAUCE.
+    const crustEntry = findModifierEntryForPrint(m, ['CRUST', 'BASE', 'CRUSTTYPE'], 'CRUST');
+    if (crustEntry) {
+      const [key, val] = crustEntry;
+      if (val !== undefined) printModifierRows(printer, key, val);
+    }
+    const sauceEntry = findModifierEntryForPrint(m, ['SAUCE'], 'SAUCE');
+    if (sauceEntry) {
+      const [key, val] = sauceEntry;
+      if (val !== undefined) printModifierRows(printer, key, val);
     }
 
     const instrKeys = Object.keys(m).filter((k) => MOD_INSTRUCTION_KEYS.has(normModKey(k)));
