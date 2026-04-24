@@ -284,7 +284,6 @@ function printItemModifierSection(printer, item, mergedInstr) {
       const trimmed = sizeStr.trim();
       if (trimmed) {
         const inBrackets = `[${String(trimmed).toUpperCase()}]`;
-        printer.bold(false);
         printer.print(`${' '.repeat(MOD_BLOCK_INDENT)}`);
         printer.bold(true);
         printer.println(inBrackets);
@@ -483,7 +482,6 @@ function buildReceipt(printer, data = null) {
   }
   printer.newLine();
   drawDashed(printer);
-  printer.newLine();
 
   printer.alignLeft();
 
