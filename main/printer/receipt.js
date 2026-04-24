@@ -1,3 +1,10 @@
+/**
+ * Thermal receipt layout for Epson (42 cols). Builds ESC/POS via node-thermal-printer.
+ * Item modifiers: size as [BRACKET] bold line, label/value rows, comma toppings (L-/R- sides),
+ * INCL on its own + > bold value, totals, rewards, barcode, cut.
+ */
+
+// --- simple rules -----------------------------------------------------------
 function drawDashed(printer) {
   printer.drawLine('-');
 }
@@ -6,6 +13,7 @@ function drawSolid(printer) {
   printer.drawLine('=');
 }
 
+// --- defaults & branding (merged with live payload in buildReceipt) --------
 const WEBSITE = 'PIZZADEPOT.CA';
 const FEEDBACK_URL = 'PIZZADEPOT.CA/FEEDBACK';
 const COMMENTARY = 'YOU HAD OPTIONS. YOU CHOSE CORRECTLY.';
@@ -65,6 +73,7 @@ const DEFAULT_RECEIPT = {
   barcode: 'PD-20847',
 };
 
+// --- text layout (character width matches RECEIPT_LINE_WIDTH) ---------------
 function wordWrap(str, width = 38) {
   const source = String(str || '');
   const words = source.split(' ');
@@ -86,11 +95,13 @@ function wordWrap(str, width = 38) {
   return lines.length ? lines : [''];
 }
 
+// Receipt width; modifier block is indented with a fixed label column + gutter.
 const RECEIPT_LINE_WIDTH = 42;
 const MOD_BLOCK_INDENT = 3;
 const MOD_LABEL_COL_WIDTH = 9;
 const MOD_LABEL_GUTTER = 1;
 
+// Which modifier keys are handled outside the “topping comma list” pipeline.
 const MOD_HEADER_KEYS = new Set(['SIZE', 'CRUST', 'SAUCE']);
 const MOD_TAIL_KEYS = new Set(['FINISH', 'INCL', 'INCL.']);
 const MOD_INSTRUCTION_KEYS = new Set([
@@ -104,17 +115,20 @@ const MOD_INSTRUCTION_KEYS = new Set([
   'CUSTOMER NOTE',
 ]);
 
+// --- modifier parsing helpers -----------------------------------------------
 function normModKey(key) {
   return String(key || '')
     .toUpperCase()
     .trim();
 }
 
+// Thermal column header; INCL prints as INCL. to match kitchen tickets.
 function formatModifierLabel(key) {
   const k = normModKey(key);
   return k === 'INCL' ? 'INCL.' : k;
 }
 
+// Shown next to order # on the receipt (PU / DL / DI).
 function orderTypeShortCode(orderType) {
   const t = String(orderType || '').toUpperCase();
   if (t.includes('PICK')) return 'PU';
@@ -123,6 +137,7 @@ function orderTypeShortCode(orderType) {
   return '';
 }
 
+// Drop “regular cheese” noise so it does not clutter the topping list.
 function isRedundantRegularCheese(key, rawVal) {
   if (normModKey(key) !== 'CHEESE') return false;
   const v = Array.isArray(rawVal) ? rawVal.join(' ') : String(rawVal);
@@ -136,6 +151,7 @@ function isRedundantRegularCheese(key, rawVal) {
   );
 }
 
+// Merge line + order-level instruction strings (deduped) for beef/anchovy logic + SPECIAL row.
 function instructionTextForItem(item, receiptLevel) {
   const uniq = new Set();
   for (const s of [
@@ -149,6 +165,7 @@ function instructionTextForItem(item, receiptLevel) {
   return [...uniq].join(' ');
 }
 
+// If instructions ask for anchovy instead of beef, strip beef-like tokens and ensure anchovies.
 function applyBeefAnchovySwap(instructionText, pieces) {
   const instr = String(instructionText || '').toUpperCase();
   const wantsAnchovy = /ANCHOV/.test(instr);
@@ -163,16 +180,19 @@ function applyBeefAnchovySwap(instructionText, pieces) {
   return out;
 }
 
+// LEFT/RIGHT “-” means no toppings on that side; omit from lists.
 function isBlankSideToken(t) {
   const u = String(t || '').trim();
   if (!u) return true;
   return u === '-' || u === '–' || u === '—';
 }
 
+// POS sometimes sends "SIZE: …" inside arrays or topping blobs; strip from comma line (size prints as […]).
 function isSizeColonLine(s) {
   return /^\s*SIZE\s*:/i.test(String(s || '').trim());
 }
 
+// First SIZE: line wins for [BRACKET] row; remaining lines pass through to toppings text.
 function pullSizeValueFromLines(lines) {
   let sizeInner = null;
   const out = [];
@@ -188,6 +208,7 @@ function pullSizeValueFromLines(lines) {
   return { sizeInner, rest: out };
 }
 
+// Single bold line under the item: [X-LARGE] style (no “SIZE:” label).
 function printBracketSizeLine(printer, trimmed) {
   if (!trimmed) return;
   const inBrackets = `[${String(trimmed).toUpperCase()}]`;
@@ -197,6 +218,7 @@ function printBracketSizeLine(printer, trimmed) {
   printer.bold(false);
 }
 
+// One key → string pieces; FULL/LEFT/RIGHT split on “ / ” for half-and-half style lists.
 function flattenModifierValues(key, rawVal) {
   const k = normModKey(key);
   if (Array.isArray(rawVal)) {
@@ -213,12 +235,14 @@ function flattenModifierValues(key, rawVal) {
   return [s];
 }
 
+// Order: whole pie first, then sides; other keys (e.g. CHEESE) after, unprefixed.
 const TOPPING_SIDE_KEYS = ['FULL', 'WHOLE', 'LEFT', 'RIGHT'];
 
 function collectToppingPieces(modifiers) {
   if (!modifiers || typeof modifiers !== 'object') return [];
   const pieces = [];
 
+  // Skip header/tail/instruction keys; prefix LEFT/RIGHT segments for the comma line.
   function pushFromKey(key) {
     if (!Object.prototype.hasOwnProperty.call(modifiers, key)) return;
     const nk = normModKey(key);
@@ -242,12 +266,15 @@ function collectToppingPieces(modifiers) {
   return pieces;
 }
 
+// Modifier label column: pad left so labels align (CRUST, SAUCE, …).
 function rightAlignInColumn(text, width) {
   const s = String(text);
   if (s.length >= width) return s.slice(0, width);
   return ' '.repeat(width - s.length) + s;
 }
 
+// --- modifier rows on the printer -------------------------------------------
+// Default: [indent][label right 9][gap][value…]. omitLabel: full width value only (toppings).
 function printModifierRows(printer, key, rawVal, opts = {}) {
   const valueText = Array.isArray(rawVal) ? rawVal.join(' / ') : String(rawVal);
   const prefix = ' '.repeat(MOD_BLOCK_INDENT);
@@ -274,11 +301,13 @@ function printModifierRows(printer, key, rawVal, opts = {}) {
   }
 }
 
+// Match INCL / INCL. keys from different POS spellings.
 function isInclKey(key) {
   const k = normModKey(key).replace(/\./g, '');
   return k === 'INCL';
 }
 
+// INCL.: label-only row, then “> ” + bold value (wrapped); “>” stays normal weight.
 function printInclHighlight(printer, rawVal, modKey) {
   const valueText = Array.isArray(rawVal) ? rawVal.join(' / ') : String(rawVal);
   if (!String(valueText).trim()) return;
@@ -306,6 +335,7 @@ function printInclHighlight(printer, rawVal, modKey) {
   printer.bold(false);
 }
 
+// Under each line item: structured modifiers object, or legacy toppings[] only.
 function printItemModifierSection(printer, item, mergedInstr) {
   if (item.modifiers) {
     const m = item.modifiers;
@@ -317,6 +347,7 @@ function printItemModifierSection(printer, item, mergedInstr) {
       printBracketSizeLine(printer, trimmed);
     }
 
+    // Label + value rows (not bold except size line above).
     const headerOrder = ['CRUST', 'SAUCE'];
     for (const canon of headerOrder) {
       const entry = Object.entries(m).find(([k]) => normModKey(k) === canon);
@@ -335,6 +366,7 @@ function printItemModifierSection(printer, item, mergedInstr) {
       printModifierRows(printer, 'SPECIAL', mergedInstr);
     }
 
+    // Comma-separated toppings; SIZE: text stripped (size already [BRACKET]).
     let pieces = collectToppingPieces(m);
     pieces = applyBeefAnchovySwap(mergedInstr, pieces);
     pieces = pieces.filter((p) => !isSizeColonLine(p));
@@ -342,6 +374,7 @@ function printItemModifierSection(printer, item, mergedInstr) {
       printModifierRows(printer, 'TOPPINGS', pieces.join(', '), { omitLabel: true });
     }
 
+    // FINISH row; INCL uses special “>” second line.
     const tailOrder = ['FINISH', 'INCL'];
     for (const canon of tailOrder) {
       const entry = Object.entries(m).find(([k]) =>
@@ -360,6 +393,7 @@ function printItemModifierSection(printer, item, mergedInstr) {
     return;
   }
 
+  // Legacy path: modifiers arrived as string[] → normalizeItem moved them to toppings.
   if (!item.toppings || !item.toppings.length) return;
 
   const instr = mergedInstr;
@@ -378,6 +412,7 @@ function printItemModifierSection(printer, item, mergedInstr) {
   }
 }
 
+// --- payload normalization & money -----------------------------------------
 function toMoneyString(value, fallback = '') {
   if (value == null || value === '') return fallback;
   const raw = String(value).trim();
@@ -401,6 +436,7 @@ function asStringArray(value) {
   return s ? [s] : [];
 }
 
+// Coerce modifier values to non-empty arrays per key; arrays at top level → null (handled as toppings).
 function normalizeModifierGroups(modifiers) {
   if (!modifiers || typeof modifiers !== 'object' || Array.isArray(modifiers)) return null;
   const out = {};
@@ -411,11 +447,13 @@ function normalizeModifierGroups(modifiers) {
   return Object.keys(out).length ? out : null;
 }
 
+// Prefer explicit fields from the original API payload when merging rewards, etc.
 function fromSource(source, key, fallback = '') {
   if (!source || typeof source !== 'object') return fallback;
   return Object.prototype.hasOwnProperty.call(source, key) ? source[key] : fallback;
 }
 
+// Stable qty/name/amount; object modifiers kept, array modifiers become toppings only.
 function normalizeItem(item, index) {
   const qty = item.qty || item.num || item.quantity || String(index + 1).padStart(2, '0');
   const name = String(item.name || 'ITEM').toUpperCase();
@@ -441,6 +479,7 @@ function normalizeItem(item, index) {
   };
 }
 
+// Main entry: merge defaults + optional nested data.receipt, normalize, then emit ESC/POS.
 function buildReceipt(printer, data = null) {
   const source =
     data && typeof data === 'object' && data.receipt && typeof data.receipt === 'object'
@@ -451,6 +490,7 @@ function buildReceipt(printer, data = null) {
       ? { ...DEFAULT_RECEIPT, ...source }
       : { ...DEFAULT_RECEIPT };
   const normalizedItems = (merged.items || []).map(normalizeItem);
+  // `d` is the single object used for the whole print run (defaults filled in).
   const d = {
     ...merged,
     storeAddress: merged.storeAddress || merged.address || DEFAULT_RECEIPT.storeAddress,
@@ -479,6 +519,7 @@ function buildReceipt(printer, data = null) {
     items: normalizedItems,
   };
 
+  // --- Header (centered store block + dashed rule) -------------------------
   printer.alignCenter();
   printer.setTextDoubleHeight();
   printer.bold(true);
@@ -492,6 +533,7 @@ function buildReceipt(printer, data = null) {
   }
   drawDashed(printer);
 
+  // --- Order meta (left / right columns) ------------------------------------
   printer.alignLeft();
   printer.newLine();
   printer.bold(false);
@@ -514,6 +556,7 @@ function buildReceipt(printer, data = null) {
   printer.newLine();
   drawDashed(printer);
 
+  // --- Line items + modifier blocks ----------------------------------------
   printer.alignLeft();
 
   for (const item of d.items) {
@@ -528,6 +571,7 @@ function buildReceipt(printer, data = null) {
 
   drawDashed(printer);
 
+  // --- Totals & payment ------------------------------------------------------
   printer.leftRight('ITEM COUNT', d.itemCount);
   printer.newLine();
   if (d.subtotal) {
@@ -557,6 +601,7 @@ function buildReceipt(printer, data = null) {
   printer.newLine();
   drawDashed(printer);
 
+  // --- Footer: commentary, optional rewards, barcode, URLs, cut -----------
   printer.alignCenter();
   printer.println(d.commentaryLine || COMMENTARY);
   const hasRewardsData =
@@ -618,4 +663,5 @@ function buildReceipt(printer, data = null) {
   printer.cut();
 }
 
+// Public API for main/printer/index.js and tests.
 module.exports = { buildReceipt, drawDashed, drawSolid, DEFAULT_RECEIPT };
