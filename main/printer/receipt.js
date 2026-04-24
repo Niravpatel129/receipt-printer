@@ -818,6 +818,9 @@ function buildReceipt(printer, data = null) {
     rewardCode: fromSource(source, 'rewardCode', ''),
     specialInstructions: String(merged.specialInstructions || '').trim(),
     phoneBannerText: orderTypePhoneBannerText(effectiveOrderType),
+    customerAddressLine: String(merged.customerAddressLine || merged.deliveryAddress || '')
+      .trim()
+      .replace(/\s+/g, ' '),
     items: normalizedItems,
   };
 
@@ -846,6 +849,9 @@ function buildReceipt(printer, data = null) {
   const typeShort = orderTypeShortCode(d.orderType);
   printer.leftRight('ORDER ID', typeShort ? `#${d.orderNumber}` : `#${d.orderNumber}`);
   printer.leftRight('TYPE', d.orderType || '—');
+  if (orderTypeShortCode(d.orderType) === 'DL' && d.customerAddressLine) {
+    printer.println(d.customerAddressLine);
+  }
   printer.bold(true);
   printer.leftRight('CUSTOMER', d.customerName);
   printer.bold(false);

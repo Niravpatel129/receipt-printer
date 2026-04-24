@@ -131,6 +131,29 @@ function toCurrency(value) {
   return `$ ${n.toFixed(2)}`;
 }
 
+function customerAddressLineFromOrder(order) {
+  const receipt = order.receipt && typeof order.receipt === 'object' ? order.receipt : null;
+  const candidates = [
+    receipt?.customerAddressLine,
+    receipt?.deliveryAddress,
+    order.customerAddressLine,
+    order.deliveryAddress,
+    order.location,
+    order.customer && order.customer.fullAddress,
+  ];
+  for (const v of candidates) {
+    if (v != null && String(v).trim()) {
+      return String(v).trim().replace(/\s+/g, ' ');
+    }
+  }
+  const c = order.customer;
+  if (c && typeof c === 'object') {
+    const joined = [c.address, c.city, c.state, c.zip].filter(Boolean).join(', ');
+    if (joined.trim()) return joined.trim().replace(/\s+/g, ' ');
+  }
+  return '';
+}
+
 function lineItemOptionsOrToppingsFromReceipt(rit, raw) {
   if (rit && typeof rit === 'object') {
     if (Array.isArray(rit.options) && rit.options.length) return rit.options;
@@ -175,6 +198,7 @@ function orderToReceiptPayload(order) {
     order.kitchenNotes ||
     order.notes ||
     '';
+  const customerAddressLine = customerAddressLineFromOrder(order);
 
   if (order.receipt && typeof order.receipt === 'object') {
     const rawLineItems = Array.isArray(order.items) ? order.items : [];
@@ -222,6 +246,7 @@ function orderToReceiptPayload(order) {
       website: order.receipt.website || website,
       footerMessage: order.receipt.footerMessage || footerMessage,
       specialInstructions: order.receipt.specialInstructions || orderSpecialFromRoot || undefined,
+      customerAddressLine,
       items: mergedItems.length ? mergedItems : order.receipt.items,
     };
   }
@@ -265,6 +290,7 @@ function orderToReceiptPayload(order) {
     specialInstructions: orderSpecial || undefined,
     customerName,
     customerPhone,
+    customerAddressLine,
     date: date,
     items,
     itemCount: String(order.itemCount != null ? order.itemCount : items.length),
