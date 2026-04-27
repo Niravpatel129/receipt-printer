@@ -7,7 +7,7 @@
     "start": "npm run build && electron .",
     "dev": "vite build --watch",
     "install:mac": "npm install --omit=optional",
-    "postinstall": "electron-builder install-app-deps",
+    "postinstall": "electron-builder install-app-deps && patch-package",
     "dist": "npm run build && electron-builder --publish never",
     "dist:mac": "npm run build && electron-builder --mac --publish never",
     "dist:win": "npm run build && electron-builder --win --publish never",
@@ -65,8 +65,9 @@
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.4",
     "electron": "22.3.27",
-    "electron-reloader": "^1.2.3",
     "electron-builder": "^26.8.2",
+    "electron-reloader": "^1.2.3",
+    "patch-package": "^8.0.1",
     "vite": "^6.0.3"
   },
   "dependencies": {
