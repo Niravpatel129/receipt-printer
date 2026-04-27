@@ -10,9 +10,9 @@
     "postinstall": "electron-builder install-app-deps",
     "dist": "npm run build && electron-builder --publish never",
     "dist:mac": "npm run build && electron-builder --mac --publish never",
-    "dist:win": "npm run build && electron-builder --win nsis --x64 --ia32 --publish never",
-    "dist:win:ia32": "npm run build && electron-builder --win nsis --ia32 --publish never",
-    "dist:win:ci": "npm run build && electron-builder --win nsis --x64 --ia32 --publish always"
+    "dist:win": "npm run build && electron-builder --win --publish never",
+    "dist:win:ia32": "npm run build && electron-builder --win --ia32 --publish never",
+    "dist:win:ci": "npm run build && electron-builder --win --publish always"
   },
   "build": {
     "appId": "com.receiptprinter.app",
@@ -34,13 +34,8 @@
     "win": {
       "artifactName": "${productName}-${version}-${arch}.${ext}",
       "target": [
-        {
-          "target": "nsis",
-          "arch": [
-            "x64",
-            "ia32"
-          ]
-        }
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "nsis", "arch": ["ia32"] }
       ]
     },
     "nsis": {
